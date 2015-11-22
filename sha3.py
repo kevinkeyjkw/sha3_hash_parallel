@@ -39,6 +39,8 @@ if __name__ == '__main__':
     
     program = cl.Program(context, open('sha3.cl').read()).build(options='')
 
+
+    WORDLENGTH = 64
     #Set up Round constants
     RC=[0x0000000000000001,
         0x0000000000008082,
@@ -67,8 +69,10 @@ if __name__ == '__main__':
 
     #print RC[1]
     #round_constants = np.array([int(x,16) for x in RC])
-    round_constants = np.array(RC)
-    round_constants_gpu = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8 * len(RC))   #Why * 8???
+    #round_constants = np.array(RC)
+    #round_constants2 = np.array([(x % (1<<WORDLENGTH)) for x in RC])
+    round_constants = np.array([np.uint64(x) for x in RC])
+    round_constants_gpu = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8 * len(round_constants))   #Why * 8???
     cl.enqueue_copy(queue, round_constants_gpu, round_constants, is_blocking=False)
 
     #Set up rotation offsets
@@ -77,12 +81,33 @@ if __name__ == '__main__':
                                 62, 6 ,43 ,15 ,61,  \
                                 28, 55, 25, 21, 56, \
                                 27, 20, 39, 8 ,14])
+
+    rotation_offsets = np.array([np.uint64(x) for x in rotation_offsets])
     rotation_gpu_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8 * len(rotation_offsets))
     cl.enqueue_copy(queue, rotation_gpu_buffer, rotation_offsets, is_blocking=False)
 
     #Setup initial hash value
     #to_hash = ['asdf asdf asdf asdf']*25
-    to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+#    to_hash= np.array([[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]])
+#    to_hash= np.array([[1,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+
+    #hash round 3
+    #to_hash =   np.array([[32899, 17592186044416, 32768, 1, 17592186077184],
+    #                        [0, 35184374185984, 0, 35184372088832, 2097152],
+    #                        [2, 512, 0, 514, 0],
+    #                        [268436480, 0, 1024, 268435456, 0],
+    #                        [1099511627776, 0, 1099511627780, 0, 4]])
+
+    #hash round 3
+    to_hash = np.array([[32899, 0, 2, 268436480, 1099511627776], 
+        [17592186044416, 35184374185984, 512, 0, 0], 
+        [32768, 0, 0, 1024, 1099511627780], 
+        [1, 35184372088832, 514, 268435456, 0], 
+        [17592186077184, 2097152, 0, 0, 4]])
+
+
+
+    to_hash = np.array([np.uint64(x) for x in to_hash])
 
     stuff_to_hash = cl.Buffer(context, cl.mem_flags.READ_ONLY, to_hash.size * 8)
     cl.enqueue_copy(queue, stuff_to_hash, to_hash, is_blocking=False)#is_block=True means wait for completion
@@ -92,25 +117,26 @@ if __name__ == '__main__':
     
     #Create 5x5 workgroup, local buffer
     local_size, global_size = (5, 5) , (5,5)
-    local_buf_w,local_buf_h = np.int32(5),np.int32(5)
+    local_buf_w,local_buf_h = np.uint64(5),np.uint64(5)
 
     gpu_local_memory = cl.LocalMemory(to_hash.size * 8)
     #A = cl.LocalMemory(to_hash.size * 8)
     #B = cl.LocalMemory(to_hash.size * 8)
-    A = cl.LocalMemory(4*25)
-    B = cl.LocalMemory(4*25)
+    A = cl.LocalMemory(8*25)
+    B = cl.LocalMemory(8*25)
+    C = cl.LocalMemory(8*25)
+    D = cl.LocalMemory(8*25)
 
-
-
-    print to_hash.size
     #Hash input
     program.sha_3_hash(queue, global_size, local_size,
                               stuff_to_hash, gpu_final_hash,rotation_gpu_buffer,round_constants_gpu,
-                              B,A,local_buf_w,local_buf_h)
+                              B,A, C, D, local_buf_w,local_buf_h)
 
 
-
-
+    final_hash = np.zeros((5,5))
+    final_hash = np.array([np.uint64(x) for x in final_hash])    
+    cl.enqueue_copy(queue, final_hash, gpu_final_hash, is_blocking=True)
+    print final_hash
 
     #cl.Buffer = global memory
     #cl.LocalMemory = local memory
