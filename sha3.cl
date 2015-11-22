@@ -1,9 +1,11 @@
-__kernel void sha_3_hash(__global __read_only int *original_hash,
-                        __global __write_only int *final_hash,
-                        __global __read_only int *rotation_offsets,
-                        __global __read_only int *RCfixed,
-                        __local int *B, 
-                        __local int *A, int buf_w, int buf_h){
+#include <stdint.h>
+
+__kernel void sha_3_hash(__global __read_only int64_t *original_hash,
+                        __global __write_only int64_t *final_hash,
+                        __global __read_only int64_t *rotation_offsets,
+                        __global __read_only int64_t *RCfixed,
+                        __local int64_t *B, 
+                        __local int64_t *A, int buf_w, int buf_h){
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
     //Each thread responsible for loading its value from global to local
@@ -16,7 +18,7 @@ __kernel void sha_3_hash(__global __read_only int *original_hash,
     //Rho step
 
     //Pi step
-    B[lx * buf_w + (2 * ly + 3 * lx) % 5] = rotateFunction(
+    B[lx * buf_w + (2 * ly + 3 * lx) % 5] = rotate(
                             A[ly * buf_w + lx],
                             rotation_offsets[ly * buf_w + lw]);
     //Chi step
@@ -38,7 +40,9 @@ Should we do rounds in host or inside kernel? We either pass in array round cons
 or one round constant
 
 */
-
+int rotate(int toRotate,int rotate_offset){
+    return toRotate >> rotate_offset;
+}
 // __kernel void
 // initialize_labels(__global __read_only int *image,
 //                   __global __write_only int *labels,

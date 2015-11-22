@@ -78,18 +78,19 @@ if __name__ == '__main__':
     cl.enqueue_copy(queue, rotation_gpu_buffer, rotation_offsets)
 
     #Setup initial hash value
-    to_hash = ['asdf asdf asdf asdf']*25
-    stuff_to_hash = cl.Buffer(context, cl.mem_flats.READ_ONLY, 4 * 25)
+    to_hash = [0xFA19DEADBEEF0000]*25
+    stuff_to_hash = cl.Buffer(context, cl.mem_flats.READ_ONLY, 8 * 25)#64bit = 8 bytes
     cl.enqueue_copy(queue, stuff_to_hash, to_hash, is_blocking=False)#is_block=True means wait for completion
 
     #Buffer for GPU to write final hash
-    gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, 4 * 25)
+    gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, 8 * 25)
     
     #Create 5x5 workgroup, local buffer
     local_size, global_size = (5, 5) , (5,5)
     local_buf_w,local_buf_h = 5,5
-    gpu_local_memory = cl.LocalMemory(4 * 25)
-    A,B = cl.LocalMemory(4 * 25),cl.LocalMemory(4 * 25)
+    gpu_local_memory = cl.LocalMemory(8 * 25)
+    A,B = cl.LocalMemory(8 * 25),cl.LocalMemory(8 * 25)
+    
     #Hash input
     program.sha_3_hash(queue, global_size, local_size,
                               stuff_to_hash, gpu_final_hash,rotation_gpu,round_constants_gpu,
