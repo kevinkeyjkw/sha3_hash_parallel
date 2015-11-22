@@ -1,3 +1,10 @@
+//rotate input by x bit to the left, where input is of bitlength size
+int rotateFunction(int input, int bits, int bitlength)
+{
+        bits = input%bitlength;
+        return ((input>>(bitlength-bits))+(input<<bits))%(1<<bitlength);
+}
+
 __kernel void sha_3_hash(__global __read_only int *original_hash,
                         __global __write_only int *final_hash,
                         __global __read_only int *rotation_offsets,
@@ -6,6 +13,11 @@ __kernel void sha_3_hash(__global __read_only int *original_hash,
                         __local int *A, int buf_w, int buf_h){
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
+
+    //int C[5];
+    //int D[5];
+    int wordlength = 64;
+
     //Each thread responsible for loading its value from global to local
     A[ly*buf_w+lx] = original_hash[ly*buf_w+lx];
     //Make sure threads have finished loading local buffer
@@ -18,7 +30,7 @@ __kernel void sha_3_hash(__global __read_only int *original_hash,
     //Pi step
     B[lx * buf_w + (2 * ly + 3 * lx) % 5] = rotateFunction(
                             A[ly * buf_w + lx],
-                            rotation_offsets[ly * buf_w + lw]);
+                            rotation_offsets[ly * buf_w + lx], wordlength);
     //Chi step
     A[ly * buf_w + lx] = B[ly * buf_w + lx] ^ (
         (!B[((ly+1) % 5) * buf_w + lx]) && 
@@ -26,7 +38,7 @@ __kernel void sha_3_hash(__global __read_only int *original_hash,
         );
     //Iota step, Used RCfixed which depends on round number
     if(lx==0 && ly==0){
-        A[0] = A[0] ^ RCfixed;
+        A[0] = A[0] ^ *RCfixed;
     }
     //Write A to global
     final_hash[ly * buf_w + lx] = A[ly * buf_w + lx];

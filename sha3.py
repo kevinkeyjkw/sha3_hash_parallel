@@ -28,13 +28,13 @@ if __name__ == '__main__':
     # Create a context with all the devices
     devices = platforms[0].get_devices()
     context = cl.Context(devices[:2])
-    #print 'This context is associated with ', len(context.devices), 'devices'
+    print 'This context is associated with ', len(context.devices), 'devices'
 
     # Create a queue for transferring data and launching computations.
     # Turn on profiling to allow us to check event times.
     queue = cl.CommandQueue(context, context.devices[0],
                             properties=cl.command_queue_properties.PROFILING_ENABLE)
-    #print 'The queue is using the device:', queue.device.name
+    print 'The queue is using the device:', queue.device.name
 
     
     program = cl.Program(context, open('sha3.cl').read()).build(options='')
@@ -64,9 +64,12 @@ if __name__ == '__main__':
         0x8000000000008080,
         0x0000000080000001,
         0x8000000080008008]
-    round_constants = np.array([int(x,16) for x in RC])
-    round_constants_gpu = cl.Buffer(context, cl.mem_flats.READ_ONLY, 8 * len(RC))
-    cl.enqueue_copy(queue, round_constants_gpu, round_constants)
+
+    #print RC[1]
+    #round_constants = np.array([int(x,16) for x in RC])
+    round_constants = np.array(RC)
+    round_constants_gpu = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8 * len(RC))   #Why * 8???
+    cl.enqueue_copy(queue, round_constants_gpu, round_constants, is_blocking=False)
 
     #Set up rotation offsets
     rotation_offsets = np.array([0, 36, 3, 41, 18, \
@@ -74,25 +77,35 @@ if __name__ == '__main__':
                                 62, 6 ,43 ,15 ,61,  \
                                 28, 55, 25, 21, 56, \
                                 27, 20, 39, 8 ,14])
-    rotation_gpu = cl.Buffer(context, cl.mem_flats.READ_ONLY, 4*25)
-    cl.enqueue_copy(queue, rotation_gpu_buffer, rotation_offsets)
+    rotation_gpu_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8 * len(rotation_offsets))
+    cl.enqueue_copy(queue, rotation_gpu_buffer, rotation_offsets, is_blocking=False)
 
     #Setup initial hash value
-    to_hash = ['asdf asdf asdf asdf']*25
-    stuff_to_hash = cl.Buffer(context, cl.mem_flats.READ_ONLY, 4 * 25)
+    #to_hash = ['asdf asdf asdf asdf']*25
+    to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+
+    stuff_to_hash = cl.Buffer(context, cl.mem_flags.READ_ONLY, to_hash.size * 8)
     cl.enqueue_copy(queue, stuff_to_hash, to_hash, is_blocking=False)#is_block=True means wait for completion
 
     #Buffer for GPU to write final hash
-    gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, 4 * 25)
+    gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, to_hash.size * 8)
     
     #Create 5x5 workgroup, local buffer
     local_size, global_size = (5, 5) , (5,5)
-    local_buf_w,local_buf_h = 5,5
-    gpu_local_memory = cl.LocalMemory(4 * 25)
-    A,B = cl.LocalMemory(4 * 25),cl.LocalMemory(4 * 25)
+    local_buf_w,local_buf_h = np.int32(5),np.int32(5)
+
+    gpu_local_memory = cl.LocalMemory(to_hash.size * 8)
+    #A = cl.LocalMemory(to_hash.size * 8)
+    #B = cl.LocalMemory(to_hash.size * 8)
+    A = cl.LocalMemory(4*25)
+    B = cl.LocalMemory(4*25)
+
+
+
+    print to_hash.size
     #Hash input
     program.sha_3_hash(queue, global_size, local_size,
-                              stuff_to_hash, gpu_final_hash,rotation_gpu,round_constants_gpu,
+                              stuff_to_hash, gpu_final_hash,rotation_gpu_buffer,round_constants_gpu,
                               B,A,local_buf_w,local_buf_h)
 
 
