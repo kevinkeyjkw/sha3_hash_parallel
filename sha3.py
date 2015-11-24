@@ -89,21 +89,14 @@ if __name__ == '__main__':
     #Setup initial hash value
     #to_hash = ['asdf asdf asdf asdf']*25
 #    to_hash= np.array([[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]])
-#    to_hash= np.array([[1,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+    to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
 
     #hash round 3
-    #to_hash =   np.array([[32899, 17592186044416, 32768, 1, 17592186077184],
-    #                        [0, 35184374185984, 0, 35184372088832, 2097152],
-    #                        [2, 512, 0, 514, 0],
-    #                        [268436480, 0, 1024, 268435456, 0],
-    #                        [1099511627776, 0, 1099511627780, 0, 4]])
-
-    #hash round 3
-    to_hash = np.array([[32899, 0, 2, 268436480, 1099511627776], 
-        [17592186044416, 35184374185984, 512, 0, 0], 
-        [32768, 0, 0, 1024, 1099511627780], 
-        [1, 35184372088832, 514, 268435456, 0], 
-        [17592186077184, 2097152, 0, 0, 4]])
+    #to_hash = np.array([[32899, 0, 2, 268436480, 1099511627776], 
+    #    [17592186044416, 35184374185984, 512, 0, 0], 
+    #    [32768, 0, 0, 1024, 1099511627780], 
+    #    [1, 35184372088832, 514, 268435456, 0], 
+    #    [17592186077184, 2097152, 0, 0, 4]])
 
 
 
@@ -136,8 +129,11 @@ if __name__ == '__main__':
     final_hash = np.zeros((5,5))
     final_hash = np.array([np.uint64(x) for x in final_hash])    
     cl.enqueue_copy(queue, final_hash, gpu_final_hash, is_blocking=True)
-    print final_hash
-
+    #print final_hash
+    hex_output = [map(hex, l) for l in np.transpose(final_hash)]
+    print "output:"
+    for x in range(len(hex_output)):
+        print hex_output[x]
     #cl.Buffer = global memory
     #cl.LocalMemory = local memory
 
