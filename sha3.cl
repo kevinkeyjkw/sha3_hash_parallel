@@ -1,48 +1,114 @@
-#include <stdint.h>
+//#include <stdint.h>
+//rotate input by x bit to the left, where input is of bitlength size
+ulong rotateFunction(ulong input, ulong bits, ulong bitlength)
+{
+    if (bits == 0)
+    {
+        return input;
+    }
 
-__kernel void sha_3_hash(__global __read_only int64_t *original_hash,
-                        __global __write_only int64_t *final_hash,
-                        __global __read_only int64_t *rotation_offsets,
-                        __global __read_only int64_t *RCfixed,
-                        __local int64_t *B, 
-                        __local int64_t *A, int buf_w, int buf_h){
+        bits = bits%bitlength;
+        return ((input>>(bitlength-bits))+(input<<bits));
+}
+
+__kernel void sha_3_hash(__global __read_only ulong *original_hash,
+                        __global __write_only ulong *final_hash,
+                        __global __read_only ulong *rotation_offsets,
+                        __global __read_only ulong *RCfixed,
+                        __local ulong *B, 
+                        __local ulong *A, __local ulong *C, __local ulong *D, ulong buf_w, ulong buf_h){
+
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
+
+    const ulong wordlength = 64;
+
     //Each thread responsible for loading its value from global to local
     A[ly*buf_w+lx] = original_hash[ly*buf_w+lx];
     //Make sure threads have finished loading local buffer
     barrier(CLK_LOCAL_MEM_FENCE);
     //Assume have B(5x5) and rotation offsets(5x5)
+
     //Theta step
 
+    //C[lx] = A[lx]^A[lx + 5]^A[lx + 5*2]^A[lx + 5*3]^A[lx + 5*4]; 
+    //barrier(CLK_LOCAL_MEM_FENCE); 
+    //D[lx] =  C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength);
+    //barrier(CLK_LOCAL_MEM_FENCE);
+
+    C[lx] = A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4]; 
+    
+    D[lx] =  C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    A[ly*buf_w+lx] = A[ly*buf_w+lx] ^ D[ly];   
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+  
     //Rho step
 
     //Pi step
-    B[lx * buf_w + (2 * ly + 3 * lx) % 5] = rotate(
+
+    B[lx * buf_w + ((2 * ly + 3 * lx) % 5)] = rotateFunction(
                             A[ly * buf_w + lx],
-                            rotation_offsets[ly * buf_w + lw]);
+                            rotation_offsets[ly * buf_w + lx], wordlength);
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+/*
+    if(lx==0 && ly==0){
+        printf("%lu\n", A[0 * buf_w + 0]);
+        printf("%lu\n", rotation_offsets[0 * buf_w + 0]);       
+        printf("%lu\n", rotateFunction(A[0 * buf_w + 0],rotation_offsets[0 * buf_w + 0], wordlength));
+        printf("\n");
+        printf("%lu\n", B[0]);
+        printf("%lu\n", B[1]);
+        printf("%lu\n", B[2]);
+        printf("%lu\n", B[3]);
+        printf("%lu\n", B[4]);
+        printf("\n");
+    } 
+*/
     //Chi step
     A[ly * buf_w + lx] = B[ly * buf_w + lx] ^ (
-        (!B[((ly+1) % 5) * buf_w + lx]) && 
+        (~B[((ly+1) % 5) * buf_w + lx]) & 
         B[((ly+2)%5) * buf_w + lx]
         );
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    /*
+    if(lx==0 && ly==0){
+
+        printf("%lu\n", B[0 * buf_w + 0]);
+        printf("%lu\n", ~B[((0+1) % 5) * buf_w + 0]);
+        printf("%lu\n", B[((ly+2)%5) * buf_w + lx]);
+        printf("%lu\n", (~B[((ly+1) % 5) * buf_w + lx]) &  B[((ly+2)%5) * buf_w + lx]);
+        printf("\n");
+    }  
+*/
+
+    if(lx==0 && ly==0){
+
+        printf("%lu\n", A[0]);
+        printf("%lu\n", A[1]);
+        printf("%lu\n", A[2]);
+        printf("%lu\n", A[3]);
+        printf("%lu\n", A[4]);
+    }  
+
     //Iota step, Used RCfixed which depends on round number
     if(lx==0 && ly==0){
-        A[0] = A[0] ^ RCfixed;
+        A[0] = A[0] ^ RCfixed[2];
+        printf("%#010x\n", RCfixed[2]);
+        printf("%#010x\n", RCfixed[3]);
+        printf("%#010x\n", RCfixed[4]);
     }
     //Write A to global
     final_hash[ly * buf_w + lx] = A[ly * buf_w + lx];
+    //final_hash = original_hash;
 }
 
-/*
-Questions
-Should we do rounds in host or inside kernel? We either pass in array round constant
-or one round constant
-
-*/
-int rotate(int toRotate,int rotate_offset){
-    return toRotate >> rotate_offset;
-}
+// int rotate(int toRotate,int rotate_offset){
+//     return toRotate >> rotate_offset;
+// }
 // __kernel void
 // initialize_labels(__global __read_only int *image,
 //                   __global __write_only int *labels,
