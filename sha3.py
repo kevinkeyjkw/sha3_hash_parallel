@@ -122,6 +122,15 @@ if __name__ == '__main__':
 
     to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
 
+    to_hash2= np.array([[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+    inputnum = 2
+
+    #print to_hash
+    #print np.append(to_hash, to_hash2, axis=1)
+    to_hash= np.append(to_hash, to_hash2, axis=0)
+    #print to_hash
+
+
     to_hash = np.array([np.uint64(x) for x in to_hash])
 
     stuff_to_hash = cl.Buffer(context, cl.mem_flags.READ_ONLY, to_hash.size * 8)
@@ -131,11 +140,11 @@ if __name__ == '__main__':
     gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, to_hash.size * 8)
     
     #Create 5x5 workgroup, local buffer
-    local_size, global_size = (5, 5) , (5,5)
+    local_size, global_size = (5, 5) , (5,5*inputnum)
     local_buf_w,local_buf_h = np.uint64(5),np.uint64(5)
 
 
-    gpu_local_memory = cl.LocalMemory(to_hash.size * 8)
+    #gpu_local_memory = cl.LocalMemory(to_hash.size * 8)
     #A = cl.LocalMemory(to_hash.size * 8)
     #B = cl.LocalMemory(to_hash.size * 8)
     A = cl.LocalMemory(8*25)
@@ -144,7 +153,7 @@ if __name__ == '__main__':
     D = cl.LocalMemory(8*25)
 
     #Hash input
-    final_hash = np.zeros((5,5))
+    final_hash = np.zeros((5*inputnum,5))
     final_hash = np.array([np.uint64(x) for x in final_hash])    
     hash_event = program.sha_3_hash(queue, global_size, local_size,
                               stuff_to_hash, gpu_final_hash,rotation_gpu_buffer,round_constants_gpu,
@@ -157,11 +166,28 @@ if __name__ == '__main__':
     #Profiling part
     seconds = (hash_event.profile.end - hash_event.profile.start) / 1e9
     print 'Total seconds to hash:',seconds
-    #print final_hash
+
+
     hex_output = [map(hex, l) for l in np.transpose(final_hash)]
+    #hex_output = [map(hex, l) for l in final_hash]
     print "output:"
-    for x in range(len(hex_output)):
-        print hex_output[x]
+    for counter in range(inputnum):
+        print "Input " + str(counter) + " Result:"
+        for x in range(len(hex_output)):
+            print hex_output[x][counter*5:counter*5+4]
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     #cl.Buffer = global memory
     #cl.LocalMemory = local memory

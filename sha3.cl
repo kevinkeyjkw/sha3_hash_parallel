@@ -21,19 +21,25 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
 
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);    
+
     const ulong wordlength = 64;
 
     //Each thread responsible for loading its value from global to local
-    A[ly*buf_w+lx] = original_hash[ly*buf_w+lx];
+    A[ly*buf_w+lx] = original_hash[y*buf_w+x];
     //Make sure threads have finished loading local buffer
     barrier(CLK_LOCAL_MEM_FENCE);
     //Assume have B(5x5) and rotation offsets(5x5)
 
     for (int roundcounter = 0; roundcounter < 24; roundcounter++)
     {
+
+        /*
         if(lx==0 && ly==0){
-            printf("Starting Round:%i\n", roundcounter);
+            printf("Starting Round:%i: %i global:%i, %i, %lu\n", roundcounter, lx, x,y, A[1]);
         }
+        */
         //Theta step
 
         C[lx] = A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4]; 
@@ -61,8 +67,8 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
     }
 
     //Write A to global
-    final_hash[ly * buf_w + lx] = A[ly * buf_w + lx];
-    
+    final_hash[y * buf_w + x] = A[ly * buf_w + lx];
+    barrier(CLK_LOCAL_MEM_FENCE);    
 }
 
 // int rotate(int toRotate,int rotate_offset){
