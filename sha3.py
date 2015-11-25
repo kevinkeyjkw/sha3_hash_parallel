@@ -5,25 +5,59 @@ import numpy as np
 import pylab
 import pdb
 
+#Only pad for string messages not integers???
+def pad10star1(self, M, n):
+    """Pad M with the pad10*1 padding rule to reach a length multiple of r bits
+
+    M: message pair (length in bits, string of hex characters ('9AFC...')
+    n: length in bits (must be a multiple of 8)
+    Example: pad10star1([60, 'BA594E0FB9EBBD30'],8) returns 'BA594E0FB9EBBD93'
+    """
+
+    [my_string_length, my_string]=M
+
+    # Check the parameter n
+    if n%8!=0:
+        raise KeccakError.KeccakError("n must be a multiple of 8")
+
+    # Check the length of the provided string
+    if len(my_string)%2!=0:
+        #Pad with one '0' to reach correct length (don't know test
+        #vectors coding)
+        my_string=my_string+'0'
+    if my_string_length>(len(my_string)//2*8):
+        raise KeccakError.KeccakError("the string is too short to contain the number of bits announced")
+
+    nr_bytes_filled=my_string_length//8
+    nbr_bits_filled=my_string_length%8
+    l = my_string_length % n
+    if ((n-8) <= l <= (n-2)):
+        if (nbr_bits_filled == 0):
+            my_byte = 0
+        else:
+            my_byte=int(my_string[nr_bytes_filled*2:nr_bytes_filled*2+2],16)
+        my_byte=(my_byte>>(8-nbr_bits_filled))
+        my_byte=my_byte+2**(nbr_bits_filled)+2**7
+        my_byte="%02X" % my_byte
+        my_string=my_string[0:nr_bytes_filled*2]+my_byte
+    else:
+        if (nbr_bits_filled == 0):
+            my_byte = 0
+        else:
+            my_byte=int(my_string[nr_bytes_filled*2:nr_bytes_filled*2+2],16)
+        my_byte=(my_byte>>(8-nbr_bits_filled))
+        my_byte=my_byte+2**(nbr_bits_filled)
+        my_byte="%02X" % my_byte
+        my_string=my_string[0:nr_bytes_filled*2]+my_byte
+        while((8*len(my_string)//2)%n < (n-8)):
+            my_string=my_string+'00'
+        my_string = my_string+'80'
+
+    return my_string
 
 if __name__ == '__main__':
     # List our platforms
     platforms = cl.get_platforms()
-    # print 'The platforms detected are:'
-    # print '---------------------------'
-    # for platform in platforms:
-    #     print platform.name, platform.vendor, 'version:', platform.version
-
-    # List devices in each platform
-    # for platform in platforms:
-    #     print 'The devices detected on platform', platform.name, 'are:'
-    #     print '---------------------------'
-    #     for device in platform.get_devices():
-    #         print device.name, '[Type:', cl.device_type.to_string(device.type), ']'
-    #         print 'Maximum clock Frequency:', device.max_clock_frequency, 'MHz'
-    #         print 'Maximum allocable memory size:', int(device.max_mem_alloc_size / 1e6), 'MB'
-    #         print 'Maximum work group size', device.max_work_group_size
-    #         print '---------------------------'
 
     # Create a context with all the devices
     devices = platforms[0].get_devices()
@@ -86,45 +120,7 @@ if __name__ == '__main__':
     rotation_gpu_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8 * len(rotation_offsets))
     cl.enqueue_copy(queue, rotation_gpu_buffer, rotation_offsets, is_blocking=False)
 
-    #Setup initial hash value
-# <<<<<<< HEAD
-#     to_hash = [0xFA19DEADBEEF0000]*25
-#     stuff_to_hash = cl.Buffer(context, cl.mem_flats.READ_ONLY, 8 * 25)#64bit = 8 bytes
-#     cl.enqueue_copy(queue, stuff_to_hash, to_hash, is_blocking=False)#is_block=True means wait for completion
-
-#     #Buffer for GPU to write final hash
-#     gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, 8 * 25)
-    
-#     #Create 5x5 workgroup, local buffer
-#     local_size, global_size = (5, 5) , (5,5)
-#     local_buf_w,local_buf_h = 5,5
-#     gpu_local_memory = cl.LocalMemory(8 * 25)
-#     A,B = cl.LocalMemory(8 * 25),cl.LocalMemory(8 * 25)
-    
-#     #Hash input
-#     program.sha_3_hash(queue, global_size, local_size,
-#                               stuff_to_hash, gpu_final_hash,rotation_gpu,round_constants_gpu,
-#                               B,A,local_buf_w,local_buf_h)
-# =======
-    #to_hash = ['asdf asdf asdf asdf']*25
-#    to_hash= np.array([[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1]])
-#    to_hash= np.array([[1,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
-
-    #hash round 3
-    #to_hash =   np.array([[32899, 17592186044416, 32768, 1, 17592186077184],
-    #                        [0, 35184374185984, 0, 35184372088832, 2097152],
-    #                        [2, 512, 0, 514, 0],
-    #                        [268436480, 0, 1024, 268435456, 0],
-    #                        [1099511627776, 0, 1099511627780, 0, 4]])
-
-    #hash round 3
-    to_hash = np.array([[32899, 0, 2, 268436480, 1099511627776], 
-        [17592186044416, 35184374185984, 512, 0, 0], 
-        [32768, 0, 0, 1024, 1099511627780], 
-        [1, 35184372088832, 514, 268435456, 0], 
-        [17592186077184, 2097152, 0, 0, 4]])
-    # to_hash = np.array([[0]*5 for i in range(5)])
-
+    to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
 
     to_hash = np.array([np.uint64(x) for x in to_hash])
 
@@ -158,10 +154,14 @@ if __name__ == '__main__':
     
     cl.enqueue_copy(queue, final_hash, gpu_final_hash, is_blocking=True)
 
+    #Profiling part
     seconds = (hash_event.profile.end - hash_event.profile.start) / 1e9
-    print 'Before hash',to_hash
     print 'Total seconds to hash:',seconds
-    print 'final hash:',final_hash
+    #print final_hash
+    hex_output = [map(hex, l) for l in np.transpose(final_hash)]
+    print "output:"
+    for x in range(len(hex_output)):
+        print hex_output[x]
 
     #cl.Buffer = global memory
     #cl.LocalMemory = local memory
