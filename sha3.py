@@ -57,23 +57,8 @@ def pad10star1(M, n):
 
     return my_string
 
-def KeccakF(to_hash):
-    # List our platforms
-    platforms = cl.get_platforms()
+def KeccakF(to_hash, program):
 
-    # Create a context with all the devices
-    devices = platforms[0].get_devices()
-    context = cl.Context(devices[:2])
-    #print 'This context is associated with ', len(context.devices), 'devices'
-
-    # Create a queue for transferring data and launching computations.
-    # Turn on profiling to allow us to check event times.
-    queue = cl.CommandQueue(context, context.devices[0],
-                            properties=cl.command_queue_properties.PROFILING_ENABLE)
-    #print 'The queue is using the device:', queue.device.name
-
-    
-    program = cl.Program(context, open('sha3.cl').read()).build(options='')
 
 
     WORDLENGTH = 64
@@ -247,7 +232,7 @@ def convertTableToStr(table):
     return output
 
 
-def Keccak(input, n):
+def Keccak(input, n, program):
 
 
     P = pad10star1([0, ''],r) 
@@ -271,7 +256,7 @@ def Keccak(input, n):
 
         S = np.array([np.uint64(x) for x in S])
         start = time.time()
-        S = KeccakF(S)
+        S = KeccakF(S, program)
         print "Time to run KeccakF: " + str(time.time() - start)
         #print S
 
@@ -292,6 +277,25 @@ def Keccak(input, n):
 
 if __name__ == '__main__':
 
+
+    # List our platforms
+    platforms = cl.get_platforms()
+
+    # Create a context with all the devices
+    devices = platforms[0].get_devices()
+    context = cl.Context(devices[:2])
+    #print 'This context is associated with ', len(context.devices), 'devices'
+
+    # Create a queue for transferring data and launching computations.
+    # Turn on profiling to allow us to check event times.
+    queue = cl.CommandQueue(context, context.devices[0],
+                            properties=cl.command_queue_properties.PROFILING_ENABLE)
+    #print 'The queue is using the device:', queue.device.name
+
+    
+    program = cl.Program(context, open('sha3.cl').read()).build(options='')
+
+
     #PARAMETERS
     r = 576
     c = 1024
@@ -309,12 +313,14 @@ if __name__ == '__main__':
     to_hash= np.append(to_hash, to_hash2, axis=0)
     to_hash = np.append(to_hash, to_hash3, axis=0) 
     #print to_hash
-
+    start = time.time()
+    S = KeccakF(to_hash, program)
+    print "Time to run KeccakF: " + str(time.time() - start)
 
     to_hash = np.array([np.uint64(x) for x in to_hash])
 
     start = time.time()
-    result = Keccak("", n)
+    result = Keccak("", n, program)
     print result
     print "Time taken is: " + str(time.time() - start)
 
