@@ -24,19 +24,8 @@ class Timer:
 
 import Keccak
 
-#A=[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
-
-#A=[[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
-
-A=[[1,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
-
-teststr = 'A'*25
 myKeccak=Keccak.Keccak(1600)
 
-with Timer() as t:
-	myKeccak.KeccakF(A, True)
-	
-
-print "total seconds:",t.interval
-myKeccak.printState(A,'Final result')
-
+start = time.time()
+print myKeccak.Keccak([0,""],r = 576, c=1024,n=512, verbose=False)
+print "total time:" + str(time.time() - start)

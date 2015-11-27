@@ -12,6 +12,7 @@
 # http://creativecommons.org/publicdomain/zero/1.0/
 
 import math
+import time
 
 class KeccakError(Exception):
     """Class of error used in the Keccak implementation
@@ -39,7 +40,6 @@ class Keccak:
 
         b: parameter b, must be choosen among [25, 50, 100, 200, 400, 800, 1600]
         """
-
         if b not in [25, 50, 100, 200, 400, 800, 1600]:
             raise KeccakError.KeccakError('b value not supported - use 25, 50, 100, 200, 400, 800 or 1600')
 
@@ -260,7 +260,16 @@ class Keccak:
             #vectors coding)
             my_string=my_string+'0'
         if my_string_length>(len(my_string)//2*8):
+            print my_string_length
+            print len(my_string)//2*8
             raise KeccakError.KeccakError("the string is too short to contain the number of bits announced")
+
+
+        #for sha3-512
+        print my_string
+        print my_string_length
+
+
 
         nr_bytes_filled=my_string_length//8
         nbr_bits_filled=my_string_length%8
@@ -321,7 +330,6 @@ class Keccak:
 
         #Padding of messages
         P = self.pad10star1(M, r)
-
         if verbose:
             print("String ready to be absorbed: %s (will be completed by %d x '00')" % (P, c//8))
 
@@ -332,7 +340,13 @@ class Keccak:
             for y in range(5):
               for x in range(5):
                   S[x][y] = S[x][y]^Pi[x][y]
+
+
+                  
+            print S
+            start = time.time()
             S = self.KeccakF(S, verbose)
+            print "Time to run KeccakF: " + str(time.time() - start)
 
         if verbose:
             print("Value after absorption : %s" % (self.convertTableToStr(S)))
