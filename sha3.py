@@ -157,88 +157,114 @@ def KeccakF(to_hash, program):
     #        print hex_output[x][counter*5:counter*5+4]
     #print np.transpose(final_hash)
 
-    #THIS PART HAS TO CHANGE
     return final_hash
 
 
-def Keccak(input_str, inputnum, n, program):
+def Keccak(inputlist, n,r, program):
 
 
-    P = pad10star1([len(input_str)*4, input_str],r) 
+
+    inputnum = len(inputlist)
+    input_str = inputlist[0]
+
+
+    P = []
+    Z = []
+
+    ### Padding Phase
+    for i in range(inputnum):
+        tmpstr = pad10star1([len(inputlist[i])*4, inputlist[i]],r) 
+        P.append(tmpstr)
+        Z.append("")
 
     # Initialisation of state
-    S=[[0,0,0,0,0],
-       [0,0,0,0,0],
-       [0,0,0,0,0],
-       [0,0,0,0,0],
-       [0,0,0,0,0]]
+    S = np.zeros((5*inputnum,5))
+
 
     #Testing
     S = np.array([np.uint64(x) for x in S])
 
     local_size, global_size = (5, 5) , (5,5*inputnum)
 
-    for i in range((len(P)*8//2)//r): 
 
+    #THIS PART HAS TO CHANGE
+    for i in range((len(P[0])*8//2)//r): 
+
+        host_string = ""
         Pi = np.zeros((5*inputnum,5))
-        Pi = np.array([np.uint64(x) for x in Pi])  
-        host_string = str(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
-        print host_string
+        Pi = np.array([np.uint64(x) for x in Pi])
+
+        for j in range(inputnum):
+            #Absorbing Phase
+            host_string = host_string + str(P[j][i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
+
+
+
+
+        #print host_string
         gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
-        gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
+        gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8 * inputnum)
         part_of_string = cl.LocalMemory(1*16)
         program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
         cl.enqueue_copy(queue, Pi, gpu_table, is_blocking=True)
 
-        for y in range(5):
-            for x in range(5):
+
+
+
+        for x in range(5*inputnum):
+            for y in range(5):
                 #print 'type S:',type(S[x][y]),'type P:',type(Pi[x][y])
                 S[x][y] = S[x][y]^Pi[x][y]
+
 
 
         S = np.array([np.uint64(x) for x in S])
         start = time.time()
         S = KeccakF(S, program)
         print "Time to run KeccakF: " + str(time.time() - start)
-        print S
+        #print S
 
     #Squeezing phase
-    Z = ''
-    outputLength = n
-    while outputLength>0:
+    #Z = ''*inputnum
 
-        # print "S is"
-        # print S
-        # string=convertTableToStr(S)
 
-        outputstring = np.chararray(400)
-        gpu_table = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=S)
 
-        #WHY 144?
-        gpu_string = cl.Buffer(context, cl.mem_flags.READ_WRITE, 144*8)
+    # print "S is"
+    # print S
+    # string=convertTableToStr(S)
 
-        program.convert_table_to_str(queue,(5,5),(5,5),gpu_table, gpu_string,np.uint64(5),np.uint64(5),np.uint64(64))
-        cl.enqueue_copy(queue, outputstring, gpu_string, is_blocking=True)
+    outputstring = np.chararray(400 * inputnum)
+    gpu_table = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=S)
 
-        # print "output string is" 
-        # print''.join(outputstring)
-        # print len(''.join(outputstring))
-        # Z = Z + string[:r*2//8]
+    #WHY 144?
+    gpu_string = cl.Buffer(context, cl.mem_flags.READ_WRITE, 144*8 * inputnum)
 
-        # print "compare"
-        # print string
-        # print len(string)
-        # outputLength -= r
+    program.convert_table_to_str(queue,global_size,local_size,gpu_table, gpu_string,np.uint64(5),np.uint64(5),np.uint64(64))
+    cl.enqueue_copy(queue, outputstring, gpu_string, is_blocking=True)
 
-        string = ''.join(outputstring)
-        Z = Z + string[:r*2//8]
-        outputLength -= r
-        #in setup of SHA-512, this part will never run
-        if outputLength>0:
-            S = KeccakF(S, program)
+    # print "output string is" 
+    # print''.join(outputstring)
+    # print len(''.join(outputstring))
+    # Z = Z + string[:r*2//8]
+
+    # print "compare"
+    # print string
+    # print len(string)
+    # outputLength -= r
+
+    string = ''.join(outputstring)
+
+    for x in range(inputnum):
+        Z[x] = Z[x] + string[400 * x: 400 * x + r*2//8]
+
+
+    #print string
+
+    for x in range(inputnum):
+        Z[x] = Z[x][0:2*n//8]
 
     #output the pre-set number of bits
-    return Z[:2*n//8]
+    return Z
 
 if __name__ == '__main__':
 
@@ -267,27 +293,30 @@ if __name__ == '__main__':
     n = 512
 
 
-    to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
-    to_hash2= np.array([[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
-    to_hash3= np.array([[1,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
-    inputnum = 3
+    # to_hash= np.array([[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+    # to_hash2= np.array([[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+    # to_hash3= np.array([[1,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]])
+    # inputnum = 3
 
 
-    #print to_hash
-    #print np.append(to_hash, to_hash2, axis=1)
-    to_hash= np.append(to_hash, to_hash2, axis=0)
-    to_hash = np.append(to_hash, to_hash3, axis=0) 
-    #print to_hash
+    # #print to_hash
+    # #print np.append(to_hash, to_hash2, axis=1)
+    # to_hash= np.append(to_hash, to_hash2, axis=0)
+    # to_hash = np.append(to_hash, to_hash3, axis=0) 
+    # #print to_hash
+    # start = time.time()
+    # S = KeccakF(to_hash, program)
+    # print "Time to run KeccakF: " + str(time.time() - start)
+
+    #to_hash = np.array([np.uint64(x) for x in to_hash])
+
+    inputlist = []
+    inputlist.append("")
+    inputlist.append("abcd")
+
     start = time.time()
-    S = KeccakF(to_hash, program)
-    print "Time to run KeccakF: " + str(time.time() - start)
-
-    to_hash = np.array([np.uint64(x) for x in to_hash])
-
-
-
-    start = time.time()
-    result = Keccak("abcd", 1, n, program)
+    result = Keccak(inputlist, n, r, program)
+    print  "Hashing Result is"
     print result
     print "Time taken is: " + str(time.time() - start)
 
@@ -307,57 +336,57 @@ if __name__ == '__main__':
 
 
     
-    #host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
-    host_string = "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-    host_string2 = "abcd010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#     #host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
+#     host_string = "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#     host_string2 = "abcd010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-    host_string = host_string + host_string2
-    inputnum = 2
+#     host_string = host_string + host_string2
+#     inputnum = 2
 
-    host_table = np.zeros((5*inputnum,5))
-    host_table = np.array([np.uint64(x) for x in host_table])  
+#     host_table = np.zeros((5*inputnum,5))
+#     host_table = np.array([np.uint64(x) for x in host_table])  
 
-    print "host string is"
-    print host_string 
-    #host_string = np.array([1,2,3])
-    #Copy host string to gpu
-    gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
-    #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
+#     print "host string is"
+#     print host_string 
+#     #host_string = np.array([1,2,3])
+#     #Copy host string to gpu
+#     gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
+#     #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
 
-    print 'host_table before conversion:',host_table
-    gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8 * inputnum)
-#    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
-
-
-    local_size, global_size = (5, 5) , (5,5*inputnum)
-    start = time.time()
-
-    part_of_string = cl.LocalMemory(1*16)
-
-    program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
-    print "Time taken for gpu to convert str to table: " + str(time.time() - start)
-
-    cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
-    print 'host_table after conversion:',host_table
-
-    host_table = KeccakF(host_table, program)
-    print 'host_table after KeccakF:',host_table
+#     print 'host_table before conversion:',host_table
+#     gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8 * inputnum)
+# #    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
 
 
-    outputstring = np.chararray(400 * inputnum)
-    gpu_table = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_table)
+#     local_size, global_size = (5, 5) , (5,5*inputnum)
+#     start = time.time()
 
-    #WHY 144?
-    gpu_string = cl.Buffer(context, cl.mem_flags.READ_WRITE, 144*8 * inputnum)
+#     part_of_string = cl.LocalMemory(1*16)
 
-    program.convert_table_to_str(queue,global_size,local_size,gpu_table, gpu_string,np.uint64(5),np.uint64(5),np.uint64(64))
-    cl.enqueue_copy(queue, outputstring, gpu_string, is_blocking=True)
+#     program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
+#     print "Time taken for gpu to convert str to table: " + str(time.time() - start)
 
-    print "output string is" 
-    output = ''.join(outputstring)
-    for counter in range(inputnum):
-        print output[counter*400:(counter+1)*400-1]
-        print
+#     cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
+#     print 'host_table after conversion:',host_table
+
+#     host_table = KeccakF(host_table, program)
+#     print 'host_table after KeccakF:',host_table
+
+
+#     outputstring = np.chararray(400 * inputnum)
+#     gpu_table = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_table)
+
+#     #WHY 144?
+#     gpu_string = cl.Buffer(context, cl.mem_flags.READ_WRITE, 144*8 * inputnum)
+
+#     program.convert_table_to_str(queue,global_size,local_size,gpu_table, gpu_string,np.uint64(5),np.uint64(5),np.uint64(64))
+#     cl.enqueue_copy(queue, outputstring, gpu_string, is_blocking=True)
+
+#     print "output string is" 
+#     output = ''.join(outputstring)
+#     for counter in range(inputnum):
+#         print output[counter*400:(counter+1)*400-1]
+#         print
 
 
 #### old code 
