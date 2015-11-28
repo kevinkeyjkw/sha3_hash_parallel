@@ -161,7 +161,7 @@ def KeccakF(to_hash, program):
     return final_hash
 
 
-def Keccak(input_str, n, program):
+def Keccak(input_str, inputnum, n, program):
 
 
     P = pad10star1([len(input_str)*4, input_str],r) 
@@ -176,18 +176,18 @@ def Keccak(input_str, n, program):
     #Testing
     S = np.array([np.uint64(x) for x in S])
 
+    local_size, global_size = (5, 5) , (5,5*inputnum)
 
+    for i in range((len(P)*8//2)//r): 
 
-    for i in range((len(P)*8//2)//r):
-
-        Pi = np.zeros((5,5))
+        Pi = np.zeros((5*inputnum,5))
         Pi = np.array([np.uint64(x) for x in Pi])  
-        #print 'Passed into convertStrToTable:',P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8)
-        #Pi=convertStrToTable(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
         host_string = str(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
+        print host_string
         gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
         gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
-        program.convert_str_to_table(queue,(5,5),(5,5), gpu_string, gpu_table,np.uint64(5),np.uint64(5),np.uint64(64))
+        part_of_string = cl.LocalMemory(1*16)
+        program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
         cl.enqueue_copy(queue, Pi, gpu_table, is_blocking=True)
 
         for y in range(5):
@@ -195,11 +195,12 @@ def Keccak(input_str, n, program):
                 #print 'type S:',type(S[x][y]),'type P:',type(Pi[x][y])
                 S[x][y] = S[x][y]^Pi[x][y]
 
+
         S = np.array([np.uint64(x) for x in S])
         start = time.time()
         S = KeccakF(S, program)
         print "Time to run KeccakF: " + str(time.time() - start)
-        #print S
+        print S
 
     #Squeezing phase
     Z = ''
@@ -283,10 +284,14 @@ if __name__ == '__main__':
 
     to_hash = np.array([np.uint64(x) for x in to_hash])
 
+
+
     start = time.time()
-    result = Keccak("", n, program)
+    result = Keccak("abcd", 1, n, program)
     print result
     print "Time taken is: " + str(time.time() - start)
+
+
 
 ###
     # original_str = np.array([["A"]*16 for x in range(25)])
@@ -298,30 +303,61 @@ if __name__ == '__main__':
 
 
 
-#     host_table = np.zeros((5,5))
-#     host_table = np.array([np.uint64(x) for x in host_table])  
+### TESTING str_to_table
+
+
     
-#     #host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
-#     host_string = "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-#     print "host string is"
-#     print len(host_string) 
-#     #host_string = np.array([1,2,3])
-#     #Copy host string to gpu
-#     gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
-#     #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
+    #host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
+    host_string = "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    host_string2 = "abcd010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-#     print 'host_table before conversion:',host_table
-#     gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
-# #    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
+    host_string = host_string + host_string2
+    inputnum = 2
 
-#     start = time.time()
-#     program.convert_str_to_table(queue,(5,5),(5,5), gpu_string, gpu_table,np.uint64(5),np.uint64(5),np.uint64(64))
-#     print "Time taken for gpu to convert str to table: " + str(time.time() - start)
+    host_table = np.zeros((5*inputnum,5))
+    host_table = np.array([np.uint64(x) for x in host_table])  
 
-#     cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
-#     print 'host_table after conversion:',host_table
+    print "host string is"
+    print host_string 
+    #host_string = np.array([1,2,3])
+    #Copy host string to gpu
+    gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
+    #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
+
+    print 'host_table before conversion:',host_table
+    gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8 * inputnum)
+#    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
 
 
+    local_size, global_size = (5, 5) , (5,5*inputnum)
+    start = time.time()
+
+    part_of_string = cl.LocalMemory(1*16)
+
+    program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
+    print "Time taken for gpu to convert str to table: " + str(time.time() - start)
+
+    cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
+    print 'host_table after conversion:',host_table
+
+    host_table = KeccakF(host_table, program)
+    print 'host_table after KeccakF:',host_table
+
+
+    outputstring = np.chararray(400 * inputnum)
+    gpu_table = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_table)
+
+    #WHY 144?
+    gpu_string = cl.Buffer(context, cl.mem_flags.READ_WRITE, 144*8 * inputnum)
+
+    program.convert_table_to_str(queue,global_size,local_size,gpu_table, gpu_string,np.uint64(5),np.uint64(5),np.uint64(64))
+    cl.enqueue_copy(queue, outputstring, gpu_string, is_blocking=True)
+
+    print "output string is" 
+    output = ''.join(outputstring)
+    for counter in range(inputnum):
+        print output[counter*400:(counter+1)*400-1]
+        print
 
 
 #### old code 

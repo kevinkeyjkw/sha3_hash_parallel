@@ -29,3 +29,7 @@ myKeccak=Keccak.Keccak(1600)
 start = time.time()
 print myKeccak.Keccak([0,""],r = 576, c=1024,n=512, verbose=False)
 print "total time:" + str(time.time() - start)
+
+start = time.time()
+print myKeccak.Keccak([16,"abcd"],r = 576, c=1024,n=512, verbose=False)
+print "total time:" + str(time.time() - start)

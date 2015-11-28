@@ -1,7 +1,7 @@
 #define YES 1
 #define NO  0
  
-ulong hexToInt(char s[]) {
+ulong hexToInt(__local char s[]) {
     int hexdigit, i, inhex;
     ulong n;    
     i=0;
@@ -108,32 +108,52 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
 }
 
 __kernel void convert_str_to_table(__global __read_only char *string_to_convert,
-                        __global __write_only ulong *table, ulong buf_w, ulong buf_h, ulong lane_bit_size){
+                        __global __write_only ulong *table,
+                        __local char *part_of_string, 
+                         ulong buf_w, ulong buf_h, ulong lane_bit_size){
 //__kernel void convert_str_to_table(__global __write_only ulong *table, ulong buf_w, ulong buf_h, ulong lane_bit_size){
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
+
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);  
+
+
+    const int group_id = get_group_id(1);
     //Offset into string
     //printf("Testing");
+
+
+
     ulong offset = (5 * lx + ly)* lane_bit_size / 4;
     //Store the part of string to convert
 
-    char part_of_string[16];
+
+
+    //char part_of_string[16];
     //printf("%c",string_to_convert[1]);
     //Copy 16 hex characters (64 bits) from large string into another variable
     int k=0;
     int l = offset;
     while(k<lane_bit_size/4){
-        part_of_string[k] = string_to_convert[l];
+        part_of_string[k] = string_to_convert[l + group_id*400];
         k+=1;
         l+=1;
     }
+    if(lx==1 && ly==0){
+        //printf("%d\n",group_id);    
+    }
+
+
 
     //printf("%c ",part_of_string[0]);
     //printf("%d ",sizeof(part_of_string));
     // //Convert that part of the string from hex characters to int 
     //     //1. Convert 'AB CD EF GH' to 'GH EF CD AB'
     int i=0;
-    int j=sizeof(part_of_string)-2;
+    //int j=sizeof(part_of_string)-2;
+    int j = 14;
+
     while(i <= 6){
         char tmpA = part_of_string[i];
         char tmpB = part_of_string[i+1];
@@ -145,9 +165,22 @@ __kernel void convert_str_to_table(__global __read_only char *string_to_convert,
         j -= 2;
     }
 
+/*
+    if(lx==0 && ly==0){
+        //printf("%d\n",group_id);
+        for (int a = 0; a< 16; a++)
+        {
+            printf("%c\n",part_of_string[a]);
+      
+        }
+    }
+*/
+
     // //2. Convert hex string to int and store in table
     //printf("%lu ",hexToInt(part_of_string));
-    table[ly*buf_w + lx] = hexToInt(part_of_string);//strtol(part_of_string, 0, 16);
+    table[y*buf_w + x] = hexToInt(part_of_string);//strtol(part_of_string, 0, 16);
+
+
     barrier(CLK_LOCAL_MEM_FENCE);
 }
 
@@ -157,38 +190,46 @@ __kernel void convert_table_to_str(__global __read_only ulong *table,
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
 
+    const int x = get_global_id(0);
+    const int y = get_global_id(1);  
+
+    const int group_id = get_group_id(1);
 
     unsigned long clearbits = 0x000000000000000f;
     int offset = 0;
-    for (int x = 0; x< 8; x++)
+    for (int a = 0; a< 8; a++)
     {
         //part_of_string[x] = (table[ly*buf_w + lx] & clearbits) >> offset;
-        output_str[(ly*buf_w + lx)*16 + x*2+1] = (table[lx*buf_w + ly] & clearbits) >> offset;
+
+        //(group_id *5 + lx)*buf_w + ly is necessary as we are taking the transpose of each workgroup
+        output_str[(y*buf_w + x)*16 + a*2+1] = (table[(group_id *5 + lx)*buf_w + ly] & clearbits) >> offset;
         clearbits = clearbits << 4;
         offset = offset + 4;
-        output_str[(ly*buf_w + lx)*16 + x*2] = (table[lx*buf_w + ly] & clearbits) >> offset;
+        output_str[(y*buf_w + x)*16 + a*2] = (table[(group_id *5 + lx)*buf_w + ly] & clearbits) >> offset;
         clearbits = clearbits << 4;
         offset = offset + 4;
 
 
     }
 
-    for (int x = 0; x<16; x++)
+    for (int a = 0; a<16; a++)
     {
-        if (output_str[(ly*buf_w + lx)*16 + x] > 9)
+        if (output_str[(y*buf_w + x)*16 + a] > 9)
         {
-            output_str[(ly*buf_w + lx)*16 + x] = output_str[(ly*buf_w + lx)*16 + x] + 55;
+            output_str[(y*buf_w + x)*16 + a] = output_str[(y*buf_w + x)*16 + a] + 55;
         }
         else
         {
-            output_str[(ly*buf_w + lx)*16 + x] = output_str[(ly*buf_w + lx)*16 + x] + 48;
+            output_str[(y*buf_w + x)*16 + a] = output_str[(y*buf_w + x)*16 + a] + 48;
         }
     }
 
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
     /*
-    if(lx==1 && ly==0){
-
-            printf("printing %lx\n", (unsigned long)table[5] );
+    if(lx==0 && ly==0){
+            printf("printing x and y %d %d", x,y );         
+            printf("printing %lx\n", (unsigned long)table[x*buf_w + y] );
             //printf("printing %lx\n", (unsigned long)table[ly*buf_w + lx] & 0x00000000000000ff);
             //printf("printing %lx\n", (unsigned long)table[ly*buf_w + lx] & 0x000000000000ff00);
 
