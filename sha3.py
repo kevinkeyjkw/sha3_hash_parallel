@@ -7,6 +7,8 @@ import pylab
 import pdb
 import time
 
+
+
 #Only pad for string messages not integers???
 def pad10star1(M, n):
     """Pad M with the pad10*1 padding rule to reach a length multiple of r bits
@@ -174,7 +176,8 @@ def fromHexStringToLane(string):
     for i in range(nrBytes):
         offset=(nrBytes-i-1)*2
         temp+=string[offset:offset+2]
-    return int(temp, 16)
+    return np.uint64(int(temp,16))
+    #return int(temp, 16)
 
 def fromLaneToHexString(lane):
     """Convert a lane value to a string of bytes written in hexadecimal"""
@@ -232,10 +235,10 @@ def convertTableToStr(table):
     return output
 
 
-def Keccak(input, n, program):
+def Keccak(input_str, n, program):
 
 
-    P = pad10star1([0, ''],r) 
+    P = pad10star1([len(input_str)*4, input_str],r) 
     print "Padded input"
     print P
     print
@@ -247,11 +250,16 @@ def Keccak(input, n, program):
        [0,0,0,0,0],
        [0,0,0,0,0]]
 
+    #Testing
+    S = np.array([np.uint64(x) for x in S])
+
     for i in range((len(P)*8//2)//r):
+        #print 'Passed into convertStrToTable:',P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8)
         Pi=convertStrToTable(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
 
         for y in range(5):
             for x in range(5):
+                #print 'type S:',type(S[x][y]),'type P:',type(Pi[x][y])
                 S[x][y] = S[x][y]^Pi[x][y]
 
         S = np.array([np.uint64(x) for x in S])
@@ -320,7 +328,34 @@ if __name__ == '__main__':
     to_hash = np.array([np.uint64(x) for x in to_hash])
 
     start = time.time()
-    result = Keccak("", n, program)
+    result = Keccak("A"*10000, n, program)
+    print 'Convert str to table:',convertStrToTable("A"*16*25)
     print result
     print "Time taken is: " + str(time.time() - start)
+
+###
+    # original_str = np.array([["A"]*16 for x in range(25)])
+    mf = cl.mem_flags
+    # in_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=original_str)
+    # out_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=str_size)
+    # copied_str = np.zeros_like(original_str)
+###
+    host_table = np.zeros((5,5))
+    host_table = np.array([np.uint64(x) for x in host_table])  
+    
+    host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
+    #host_string = np.array([1,2,3])
+    #Copy host string to gpu
+    gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
+    #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
+
+    print 'host_table before conversion:',host_table
+    gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
+#    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
+    program.convert_str_to_table(queue,(5,5),(5,5), gpu_string, gpu_table,np.uint64(5),np.uint64(5),np.uint64(64))
+    cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
+    print 'host_table after conversion:',host_table
+
+
+
 

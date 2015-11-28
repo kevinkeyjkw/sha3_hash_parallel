@@ -1,4 +1,41 @@
-//#include <stdint.h>
+//#include <stdlib.h>
+#define YES 1
+#define NO  0
+ 
+ulong hexToInt(char s[]) {
+    int hexdigit, i, inhex;
+    ulong n;    
+    i=0;
+     
+    if(s[i] == '0') {
+        ++i;
+        if(s[i] == 'x' || s[i] == 'X'){            
+            ++i;
+        }
+    }
+     
+    n = 0;
+    inhex = YES;
+     //for(; inhex == YES; ++i) {
+    while(inhex == YES) {
+        if(s[i] >= '0' && s[i] <= '9') {            
+            hexdigit = s[i] - '0';
+        } else if(s[i] >= 'a' && s[i] <= 'f') {            
+            hexdigit = s[i] - 'a' + 10;
+        } else if(s[i] >= 'A' && s[i] <= 'F') {
+            hexdigit = s[i] - 'A' + 10;
+        } else {
+            inhex = NO;
+        }
+         
+        if(inhex == YES) {
+            n = 16 * n + hexdigit;
+        }
+        i+=1;
+    }
+     
+    return n;
+}
 //rotate input by x bit to the left, where input is of bitlength size
 ulong rotateFunction(ulong input, ulong bits, ulong bitlength)
 {
@@ -41,8 +78,8 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
         }
         */
         //Theta step
-
         C[lx] = A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4]; 
+        //Dual xor lane
         D[lx] =  C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength);
         barrier(CLK_LOCAL_MEM_FENCE);
         A[ly*buf_w+lx] = A[ly*buf_w+lx] ^ D[ly];   
@@ -70,6 +107,52 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
     final_hash[y * buf_w + x] = A[ly * buf_w + lx];
     barrier(CLK_LOCAL_MEM_FENCE);    
 }
+
+__kernel void convert_str_to_table(__global __read_only char *string_to_convert,
+                        __global __write_only ulong *table, ulong buf_w, ulong buf_h, ulong lane_bit_size){
+//__kernel void convert_str_to_table(__global __write_only ulong *table, ulong buf_w, ulong buf_h, ulong lane_bit_size){
+    const int lx = get_local_id(0);
+    const int ly = get_local_id(1);
+    //Offset into string
+    //printf("Testing");
+    ulong offset = (5 * lx + ly)* lane_bit_size / 4;
+    //Store the part of string to convert
+
+    char part_of_string[16];
+    //printf("%c",string_to_convert[1]);
+    //Copy 16 hex characters (64 bits) from large string into another variable
+    int k=0;
+    int l = offset;
+    while(k<lane_bit_size/4){
+        part_of_string[k] = string_to_convert[l];
+        k+=1;
+        l+=1;
+    }
+    //printf("%c ",part_of_string[0]);
+    //printf("%d ",sizeof(part_of_string));
+    // //Convert that part of the string from hex characters to int 
+    //     //1. Convert 'AB CD EF GH' to 'GH EF CD AB'
+        int i=0;
+        int j=sizeof(part_of_string)-2;
+        while(i <= 6){
+            char tmpA = part_of_string[i];
+            char tmpB = part_of_string[i+1];
+            part_of_string[i] = part_of_string[j];
+            part_of_string[i+1] = part_of_string[j+1];
+            part_of_string[j] = tmpA;
+            part_of_string[j+1] = tmpB;
+            i += 2;
+            j -= 2;
+        }
+
+    // //2. Convert hex string to int and store in table
+    //printf("%lu ",hexToInt(part_of_string));
+    table[ly*buf_w + lx] = hexToInt(part_of_string);//strtol(part_of_string, 0, 16);
+    barrier(CLK_LOCAL_MEM_FENCE);
+}
+
+
+
 
 // int rotate(int toRotate,int rotate_offset){
 //     return toRotate >> rotate_offset;
