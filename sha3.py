@@ -65,7 +65,6 @@ def KeccakF(to_hash, program):
 
     WORDLENGTH = 64
     inputnum = int(to_hash.shape[0]/5)
-    print inputnum
     #Set up Round constants
     RC=[0x0000000000000001,
         0x0000000000008082,
@@ -145,8 +144,8 @@ def KeccakF(to_hash, program):
     cl.enqueue_copy(queue, final_hash, gpu_final_hash, is_blocking=True)
 
     #Profiling part
-    seconds = (hash_event.profile.end - hash_event.profile.start) / 1e9
-    print 'Total seconds to run rounds:',seconds
+    #seconds = (hash_event.profile.end - hash_event.profile.start) / 1e9
+    #print 'Total seconds to run rounds:',seconds
 
 
     #hex_output = [map(hex, l) for l in np.transpose(final_hash)]
@@ -161,87 +160,11 @@ def KeccakF(to_hash, program):
     #THIS PART HAS TO CHANGE
     return final_hash
 
-def fromHexStringToLane(string):
-    """Convert a string of bytes written in hexadecimal to a lane value"""
-
-    #Check that the string has an even number of characters i.e. whole number of bytes
-    if len(string)%2!=0:
-        print "The provided string does not end with a full byte"
-        exit(1)
-
-
-    #Perform the modification
-    temp=''
-    nrBytes=len(string)//2
-    for i in range(nrBytes):
-        offset=(nrBytes-i-1)*2
-        temp+=string[offset:offset+2]
-    return np.uint64(int(temp,16))
-    #return int(temp, 16)
-
-def fromLaneToHexString(lane):
-    """Convert a lane value to a string of bytes written in hexadecimal"""
-
-    laneHexBE = (("%%0%dX" % (64//4)) % lane)
-    #Perform the modification
-    temp=''
-    nrBytes=len(laneHexBE)//2
-    for i in range(nrBytes):
-        offset=(nrBytes-i-1)*2
-        temp+=laneHexBE[offset:offset+2]
-    return temp.upper()
-
-
-### Conversion functions String <-> Table (and vice-versa)
-
-def convertStrToTable(string):
-    """Convert a string of bytes to its 5×5 matrix representation
-
-    string: string of bytes of hex-coded bytes (e.g. '9A2C...')"""
-
-    #Check that input paramaters
-
-    if len(string)!=2*(1600)//8:
-        print "string can't be divided in 25 blocks of w bits"
-        exit(1)
-
-    #Convert
-    output=[[0,0,0,0,0],
-            [0,0,0,0,0],
-            [0,0,0,0,0],
-            [0,0,0,0,0],
-            [0,0,0,0,0]]
-    for x in range(5):
-        for y in range(5):
-            offset=2*((5*y+x)*64)//8
-            output[x][y]=fromHexStringToLane(string[offset:offset+(2*64//8)])
-    return output
-
-
-def convertTableToStr(table):
-    """Convert a 5×5 matrix representation to its string representation"""
-
-    #Check input format
-    if (len(table)!=5) or (False in [len(row)==5 for row in table]):
-        print "table must be 5×5"
-        exit(1)
-
-    #Convert
-    output=['']*25
-    for x in range(5):
-        for y in range(5):
-            output[5*y+x]=fromLaneToHexString(table[x][y])
-    output =''.join(output).upper()
-    return output
-
 
 def Keccak(input_str, n, program):
 
 
     P = pad10star1([len(input_str)*4, input_str],r) 
-    print "Padded input"
-    print P
-    print
 
     # Initialisation of state
     S=[[0,0,0,0,0],
@@ -253,9 +176,19 @@ def Keccak(input_str, n, program):
     #Testing
     S = np.array([np.uint64(x) for x in S])
 
+
+
     for i in range((len(P)*8//2)//r):
+
+        Pi = np.zeros((5,5))
+        Pi = np.array([np.uint64(x) for x in Pi])  
         #print 'Passed into convertStrToTable:',P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8)
-        Pi=convertStrToTable(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
+        #Pi=convertStrToTable(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
+        host_string = str(P[i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
+        gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
+        gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
+        program.convert_str_to_table(queue,(5,5),(5,5), gpu_string, gpu_table,np.uint64(5),np.uint64(5),np.uint64(64))
+        cl.enqueue_copy(queue, Pi, gpu_table, is_blocking=True)
 
         for y in range(5):
             for x in range(5):
@@ -272,15 +205,38 @@ def Keccak(input_str, n, program):
     Z = ''
     outputLength = n
     while outputLength>0:
-        string=convertTableToStr(S)
+
+        # print "S is"
+        # print S
+        # string=convertTableToStr(S)
+
+        outputstring = np.chararray(400)
+        gpu_table = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=S)
+
+        #WHY 144?
+        gpu_string = cl.Buffer(context, cl.mem_flags.READ_WRITE, 144*8)
+
+        program.convert_table_to_str(queue,(5,5),(5,5),gpu_table, gpu_string,np.uint64(5),np.uint64(5),np.uint64(64))
+        cl.enqueue_copy(queue, outputstring, gpu_string, is_blocking=True)
+
+        # print "output string is" 
+        # print''.join(outputstring)
+        # print len(''.join(outputstring))
+        # Z = Z + string[:r*2//8]
+
+        # print "compare"
+        # print string
+        # print len(string)
+        # outputLength -= r
+
+        string = ''.join(outputstring)
         Z = Z + string[:r*2//8]
         outputLength -= r
+        #in setup of SHA-512, this part will never run
         if outputLength>0:
-            S = KeccakF(S)
+            S = KeccakF(S, program)
 
-        # NB: done by block of length r, could have to be cut if outputLength
-        #     is not a multiple of r
-
+    #output the pre-set number of bits
     return Z[:2*n//8]
 
 if __name__ == '__main__':
@@ -304,7 +260,7 @@ if __name__ == '__main__':
     program = cl.Program(context, open('sha3.cl').read()).build(options='')
 
 
-    #PARAMETERS
+    #PARAMETERS for SHA 512
     r = 576
     c = 1024
     n = 512
@@ -328,34 +284,129 @@ if __name__ == '__main__':
     to_hash = np.array([np.uint64(x) for x in to_hash])
 
     start = time.time()
-    result = Keccak("A"*10000, n, program)
-    print 'Convert str to table:',convertStrToTable("A"*16*25)
+    result = Keccak("", n, program)
     print result
     print "Time taken is: " + str(time.time() - start)
 
 ###
     # original_str = np.array([["A"]*16 for x in range(25)])
-    mf = cl.mem_flags
+    #mf = cl.mem_flags
     # in_buf = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=original_str)
     # out_buf = cl.Buffer(ctx, mf.WRITE_ONLY, size=str_size)
     # copied_str = np.zeros_like(original_str)
 ###
-    host_table = np.zeros((5,5))
-    host_table = np.array([np.uint64(x) for x in host_table])  
+
+
+
+#     host_table = np.zeros((5,5))
+#     host_table = np.array([np.uint64(x) for x in host_table])  
     
-    host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
-    #host_string = np.array([1,2,3])
-    #Copy host string to gpu
-    gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
-    #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
+#     #host_string = np.array(['A']*16*25)#,'B','C'])#]*16*25)
+#     host_string = "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+#     print "host string is"
+#     print len(host_string) 
+#     #host_string = np.array([1,2,3])
+#     #Copy host string to gpu
+#     gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
+#     #cl.enqueue_copy(queue, gpu_string, host_string, is_blocking=False)
 
-    print 'host_table before conversion:',host_table
-    gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
-#    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
-    program.convert_str_to_table(queue,(5,5),(5,5), gpu_string, gpu_table,np.uint64(5),np.uint64(5),np.uint64(64))
-    cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
-    print 'host_table after conversion:',host_table
+#     print 'host_table before conversion:',host_table
+#     gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8)
+# #    program.convert_str_to_table(queue,(5,5),(5,5),gpu_string, gpu_table,5,5,64)
+
+#     start = time.time()
+#     program.convert_str_to_table(queue,(5,5),(5,5), gpu_string, gpu_table,np.uint64(5),np.uint64(5),np.uint64(64))
+#     print "Time taken for gpu to convert str to table: " + str(time.time() - start)
+
+#     cl.enqueue_copy(queue, host_table, gpu_table, is_blocking=True)
+#     print 'host_table after conversion:',host_table
 
 
 
 
+#### old code 
+
+### Conversion functions String <-> Table (and vice-versa)
+
+# def convertStrToTable(string):
+#     """Convert a string of bytes to its 5×5 matrix representation
+
+#     string: string of bytes of hex-coded bytes (e.g. '9A2C...')"""
+
+#     #Check that input paramaters
+
+#     if len(string)!=2*(1600)//8:
+#         print "string can't be divided in 25 blocks of w bits"
+#         exit(1)
+
+#     #Convert
+#     output=[[0,0,0,0,0],
+#             [0,0,0,0,0],
+#             [0,0,0,0,0],
+#             [0,0,0,0,0],
+#             [0,0,0,0,0]]
+#     for x in range(5):
+#         for y in range(5):
+#             offset=2*((5*y+x)*64)//8
+#             output[x][y]=fromHexStringToLane(string[offset:offset+(2*64//8)])
+#     return output
+
+
+# def fromHexStringToLane(string):
+#     """Convert a string of bytes written in hexadecimal to a lane value"""
+
+#     #Check that the string has an even number of characters i.e. whole number of bytes
+#     if len(string)%2!=0:
+#         print "The provided string does not end with a full byte"
+#         exit(1)
+
+
+#     #Perform the modification
+#     temp=''
+#     nrBytes=len(string)//2
+#     for i in range(nrBytes):
+#         offset=(nrBytes-i-1)*2
+#         temp+=string[offset:offset+2]
+#     return np.uint64(int(temp,16))
+#     #return int(temp, 16)
+
+
+# def fromLaneToHexString(lane):
+#     """Convert a lane value to a string of bytes written in hexadecimal"""
+
+#     laneHexBE = (("%%0%dX" % (64//4)) % lane)
+#     #Perform the modification
+#     temp=''
+#     nrBytes=len(laneHexBE)//2
+
+#     if lane == 10586621649908574990:
+#         print "lane"
+#         print lane
+#         print laneHexBE
+#         print int(laneHexBE,16)
+
+#     for i in range(nrBytes):
+#         offset=(nrBytes-i-1)*2
+
+#         temp+=laneHexBE[offset:offset+2]
+#         if lane == 10586621649908574990:
+#             print laneHexBE[offset:offset+2]
+#             print "temp is" + str(temp)
+#     return temp.upper()
+
+
+# def convertTableToStr(table):
+#     """Convert a 5×5 matrix representation to its string representation"""
+
+#     #Check input format
+#     if (len(table)!=5) or (False in [len(row)==5 for row in table]):
+#         print "table must be 5×5"
+#         exit(1)
+
+#     #Convert
+#     output=['']*25
+#     for x in range(5):
+#         for y in range(5):
+#             output[5*y+x]=fromLaneToHexString(table[x][y])
+#     output =''.join(output).upper()
+#     return output

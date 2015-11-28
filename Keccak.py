@@ -342,7 +342,7 @@ class Keccak:
                   S[x][y] = S[x][y]^Pi[x][y]
 
 
-                  
+
             print S
             start = time.time()
             S = self.KeccakF(S, verbose)
