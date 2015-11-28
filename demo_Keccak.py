@@ -33,3 +33,7 @@ print "total time:" + str(time.time() - start)
 start = time.time()
 print myKeccak.Keccak([16,"abcd"],r = 576, c=1024,n=512, verbose=False)
 print "total time:" + str(time.time() - start)
+
+start = time.time()
+print myKeccak.Keccak([4000,"a"*1000],r = 576, c=1024,n=512, verbose=False)
+print "total time:" + str(time.time() - start)

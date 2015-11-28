@@ -51,6 +51,8 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
                         __global __write_only ulong *final_hash,
                         __global __read_only ulong *rotation_offsets,
                         __global __read_only ulong *RCfixed,
+                        __global __read_only ulong *iterations,
+                        __global __read_only ulong  *curr_iteration,
                         __local ulong *B, 
                         __local ulong *A, __local ulong *C, __local ulong *D, ulong buf_w, ulong buf_h){
 
@@ -60,6 +62,8 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
     const int x = get_global_id(0);
     const int y = get_global_id(1);    
 
+    const int group_id = get_group_id(1);
+
     const ulong wordlength = 64;
 
     //Each thread responsible for loading its value from global to local
@@ -68,38 +72,51 @@ __kernel void sha_3_hash(__global __read_only ulong *original_hash,
     barrier(CLK_LOCAL_MEM_FENCE);
     //Assume have B(5x5) and rotation offsets(5x5)
 
-    for (int roundcounter = 0; roundcounter < 24; roundcounter++)
+/*
+    if(x==0 && y==0){
+        printf("iterations %d\n", iterations[group_id]);
+        //printf("iterations %d\n", iterations[3]);
+        //printf("iterations %d\n", iterations[4]);
+        printf("curr iteration %d\n", curr_iteration[0]);
+    }
+*/
+
+    if (curr_iteration[0] < iterations[group_id])
     {
 
-        /*
-        if(lx==0 && ly==0){
-            printf("Starting Round:%i: %i global:%i, %i, %lu\n", roundcounter, lx, x,y, A[1]);
+        for (int roundcounter = 0; roundcounter < 24; roundcounter++)
+        {
+
+            /*
+            if(lx==0 && ly==0){
+                printf("Starting Round:%i: %i global:%i, %i, %lu\n", roundcounter, lx, x,y, A[1]);
+            }
+            */
+            //Theta step
+            C[lx] = A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4]; 
+            //Dual xor lane
+            D[lx] =  C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength);
+            barrier(CLK_LOCAL_MEM_FENCE);
+            A[ly*buf_w+lx] = A[ly*buf_w+lx] ^ D[ly];   
+            barrier(CLK_LOCAL_MEM_FENCE);
+            //Rho step
+            //Pi step
+            B[lx * buf_w + ((2 * ly + 3 * lx) % 5)] = rotateFunction(
+                                    A[ly * buf_w + lx],
+                                    rotation_offsets[ly * buf_w + lx], wordlength);
+            barrier(CLK_LOCAL_MEM_FENCE);
+            //Chi step
+            A[ly * buf_w + lx] = B[ly * buf_w + lx] ^ (
+                (~B[((ly+1) % 5) * buf_w + lx]) & 
+                B[((ly+2)%5) * buf_w + lx]
+                );
+            barrier(CLK_LOCAL_MEM_FENCE);
+            //Iota step, Used RCfixed which depends on round number
+            if(lx==0 && ly==0){
+                A[0] = A[0] ^ RCfixed[roundcounter];
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
         }
-        */
-        //Theta step
-        C[lx] = A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4]; 
-        //Dual xor lane
-        D[lx] =  C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength);
-        barrier(CLK_LOCAL_MEM_FENCE);
-        A[ly*buf_w+lx] = A[ly*buf_w+lx] ^ D[ly];   
-        barrier(CLK_LOCAL_MEM_FENCE);
-        //Rho step
-        //Pi step
-        B[lx * buf_w + ((2 * ly + 3 * lx) % 5)] = rotateFunction(
-                                A[ly * buf_w + lx],
-                                rotation_offsets[ly * buf_w + lx], wordlength);
-        barrier(CLK_LOCAL_MEM_FENCE);
-        //Chi step
-        A[ly * buf_w + lx] = B[ly * buf_w + lx] ^ (
-            (~B[((ly+1) % 5) * buf_w + lx]) & 
-            B[((ly+2)%5) * buf_w + lx]
-            );
-        barrier(CLK_LOCAL_MEM_FENCE);
-        //Iota step, Used RCfixed which depends on round number
-        if(lx==0 && ly==0){
-            A[0] = A[0] ^ RCfixed[roundcounter];
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     //Write A to global

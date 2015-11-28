@@ -59,7 +59,7 @@ def pad10star1(M, n):
 
     return my_string
 
-def KeccakF(to_hash, program):
+def KeccakF(to_hash, program, iterations, curr_iter):
 
 
 
@@ -119,6 +119,15 @@ def KeccakF(to_hash, program):
     #Buffer for GPU to write final hash
     gpu_final_hash = cl.Buffer(context, cl.mem_flags.READ_WRITE, to_hash.size * 8)
     
+    #control the number of iterations of each hash in Keccak
+    #iterations2 = np.array([np.uint64(x) for x in iterations])
+    gpu_iterations = cl.Buffer(context, cl.mem_flags.READ_ONLY, len(iterations)*8)
+    cl.enqueue_copy(queue, gpu_iterations, np.array(iterations), is_blocking=False)#is_block=True means wait for completion
+
+    gpu_curr_iter = cl.Buffer(context, cl.mem_flags.READ_ONLY, 8)
+    cl.enqueue_copy(queue, gpu_curr_iter, np.array(curr_iter), is_blocking=False)#is_block=True means wait for completion
+
+
     #Create 5x5 workgroup, local buffer
     local_size, global_size = (5, 5) , (5,5*inputnum)
     local_buf_w,local_buf_h = np.uint64(5),np.uint64(5)
@@ -136,7 +145,7 @@ def KeccakF(to_hash, program):
     final_hash = np.zeros((5*inputnum,5))
     final_hash = np.array([np.uint64(x) for x in final_hash])    
     hash_event = program.sha_3_hash(queue, global_size, local_size,
-                              stuff_to_hash, gpu_final_hash,rotation_gpu_buffer,round_constants_gpu,
+                              stuff_to_hash, gpu_final_hash,rotation_gpu_buffer,round_constants_gpu, gpu_iterations, gpu_curr_iter,
                               B,A, C, D, local_buf_w,local_buf_h)
 
     
@@ -167,15 +176,19 @@ def Keccak(inputlist, n,r, program):
     inputnum = len(inputlist)
     input_str = inputlist[0]
 
-
+    #P is a storage for the padded inputs
     P = []
+
+    #Z is a storage for the output hashes
     Z = []
 
+    iterations = []
     ### Padding Phase
     for i in range(inputnum):
         tmpstr = pad10star1([len(inputlist[i])*4, inputlist[i]],r) 
         P.append(tmpstr)
         Z.append("")
+        iterations.append((len(tmpstr)*8//2)//r)
 
     # Initialisation of state
     S = np.zeros((5*inputnum,5))
@@ -184,26 +197,28 @@ def Keccak(inputlist, n,r, program):
     #Testing
     S = np.array([np.uint64(x) for x in S])
 
+    #Initialize workgroup sizes for the gpu
     local_size, global_size = (5, 5) , (5,5*inputnum)
 
-
     #THIS PART HAS TO CHANGE
-    for i in range((len(P[0])*8//2)//r): 
+    for i in range(max(iterations)): 
 
         host_string = ""
         Pi = np.zeros((5*inputnum,5))
         Pi = np.array([np.uint64(x) for x in Pi])
 
         for j in range(inputnum):
-            #Absorbing Phase
-            host_string = host_string + str(P[j][i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
 
+            if (iterations[j] > i):
+                #Absorbing Phase
+                host_string = host_string + str(P[j][i*(2*r//8):(i+1)*(2*r//8)]+'00'*(c//8))
+            else:
+                #Dummy variables. Won't be used.
+                host_string = host_string + "0"*400
 
-
-
-        #print host_string
         gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
         gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8 * inputnum)
+        #gpu_iterations = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=iterations)
         part_of_string = cl.LocalMemory(1*16)
         program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
         cl.enqueue_copy(queue, Pi, gpu_table, is_blocking=True)
@@ -214,13 +229,15 @@ def Keccak(inputlist, n,r, program):
         for x in range(5*inputnum):
             for y in range(5):
                 #print 'type S:',type(S[x][y]),'type P:',type(Pi[x][y])
-                S[x][y] = S[x][y]^Pi[x][y]
+
+                if (iterations[int(x/5)] > i):
+                    S[x][y] = S[x][y]^Pi[x][y]
 
 
 
         S = np.array([np.uint64(x) for x in S])
         start = time.time()
-        S = KeccakF(S, program)
+        S = KeccakF(S, program, iterations, i)
         print "Time to run KeccakF: " + str(time.time() - start)
         #print S
 
@@ -313,6 +330,9 @@ if __name__ == '__main__':
     inputlist = []
     inputlist.append("")
     inputlist.append("abcd")
+    inputlist.append("abcd")
+    inputlist.append("abcd")
+    inputlist.append("a" * 1000)
 
     start = time.time()
     result = Keccak(inputlist, n, r, program)
