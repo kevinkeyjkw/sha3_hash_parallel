@@ -13,6 +13,7 @@
 
 import math
 import time
+import struct
 
 class KeccakError(Exception):
     """Class of error used in the Keccak implementation
@@ -107,6 +108,7 @@ class Keccak:
             offset=(nrBytes-i-1)*2
             temp+=string[offset:offset+2]
         return int(temp, 16)
+
 
     def fromLaneToHexString(self, lane):
         """Convert a lane value to a string of bytes written in hexadecimal"""
@@ -266,8 +268,8 @@ class Keccak:
 
 
         #for sha3-512
-        print my_string
-        print my_string_length
+        #print my_string
+        #print my_string_length
 
 
 
@@ -343,10 +345,10 @@ class Keccak:
 
 
 
-            print S
-            start = time.time()
+            #print S
+            #start = time.time()
             S = self.KeccakF(S, verbose)
-            print "Time to run KeccakF: " + str(time.time() - start)
+            #print "Time to run KeccakF: " + str(time.time() - start)
 
         if verbose:
             print("Value after absorption : %s" % (self.convertTableToStr(S)))

@@ -59,7 +59,7 @@ def pad10star1(M, n):
 
     return my_string
 
-def KeccakF(to_hash, program, iterations, curr_iter):
+def KeccakF(to_hash, iterations, curr_iter, program, context, queue):
 
 
 
@@ -169,7 +169,7 @@ def KeccakF(to_hash, program, iterations, curr_iter):
     return final_hash
 
 
-def Keccak(inputlist, n,r, program):
+def Keccak(inputlist, n,r,c, program, context, queue):
 
 
 
@@ -237,8 +237,8 @@ def Keccak(inputlist, n,r, program):
 
         S = np.array([np.uint64(x) for x in S])
         start = time.time()
-        S = KeccakF(S, program, iterations, i)
-        print "Time to run KeccakF: " + str(time.time() - start)
+        S = KeccakF(S, iterations, i,  program, context, queue)
+        #print "Time to run KeccakF: " + str(time.time() - start)
         #print S
 
     #Squeezing phase
@@ -335,7 +335,7 @@ if __name__ == '__main__':
     inputlist.append("a" * 1000)
 
     start = time.time()
-    result = Keccak(inputlist, n, r, program)
+    result = Keccak(inputlist, n, r,c, program, context, queue)
     print  "Hashing Result is"
     print result
     print "Time taken is: " + str(time.time() - start)
