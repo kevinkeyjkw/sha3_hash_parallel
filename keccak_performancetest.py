@@ -3,7 +3,7 @@ import sha3
 import time
 import pyopencl as cl
 
-#convert a string input to ascii equivalent used in the HTTP request
+#convert a string input to ascii equivalent
 def char_to_hex(input_chars):
 	char_str = ""
 	#-1 for range because the script contains a newline at the end
@@ -42,10 +42,6 @@ def run_serial():
 	print "total time for Keccak Serial:" + str(time.time() - start)
 	dictionary.close()
 	output_to_file.close()
-
-
-
-############Parallel version#############################################
 
 def run_parallel():
 	dictionary = open("john_the_ripper_dictionary.txt")
