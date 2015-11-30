@@ -95,7 +95,6 @@ def run_parallel():
 
 	print "total time for Keccak parallel:" + str(time.time() - start)
 	# Close opend file
-	# Close opend file
 	dictionary.close()
 	output_to_file.close()
 
