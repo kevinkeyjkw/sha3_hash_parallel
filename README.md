@@ -16,14 +16,14 @@ The authors' serial code is in: Keccak.py
 
 Our parallelized code is in: sha3.cl, sha3.py
 
-Demo code given by the authors are: demo_Keccak.py (serial), demo_KeccakF.py (serial)
+Demo serial code are: demo_Keccak.py, demo_KeccakF.py
 
 Our runtime comparison script is in: keccak_performancetest.py
 
 Dictionary used in our project are taken from "John the Ripper" and "Cain & Abel"
 
-###Running SHA3
-Our script takes in a list of strings and hash the list in parallel. It can be run in the following manner:
+###Running sha3
+Our parallelized keccak takes in a list of strings and hash the list in parallel. Below is a simple example
 
 ```python
 import sha3
@@ -43,10 +43,7 @@ c = 1024
 n = 512
 
 #Input strings
-inputlist = []
-inputlist.append("")
-inputlist.append("abcd")
-inputlist.append("a" * 1000)
+inputlist = ["", "abcd", "a" * 1000]
 
 result = sha3.Keccak(inputlist, n, r,c, program, context, queue)
 print result
