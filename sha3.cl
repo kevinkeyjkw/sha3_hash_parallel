@@ -138,7 +138,7 @@ __kernel void convert_str_to_table(__global __read_only char *string_to_convert,
 
     const int group_id = get_group_id(1);
     //Offset into string
-    //printf("Testing");
+
 
 
 
@@ -146,9 +146,6 @@ __kernel void convert_str_to_table(__global __read_only char *string_to_convert,
     //Store the part of string to convert
 
 
-
-    //char part_of_string[16];
-    //printf("%c",string_to_convert[1]);
     //Copy 16 hex characters (64 bits) from large string into another variable
     int k=0;
     int l = offset;
@@ -157,14 +154,8 @@ __kernel void convert_str_to_table(__global __read_only char *string_to_convert,
         k+=1;
         l+=1;
     }
-    if(lx==1 && ly==0){
-        //printf("%d\n",group_id);    
-    }
 
 
-
-    //printf("%c ",part_of_string[0]);
-    //printf("%d ",sizeof(part_of_string));
     // //Convert that part of the string from hex characters to int 
     //     //1. Convert 'AB CD EF GH' to 'GH EF CD AB'
     int i=0;

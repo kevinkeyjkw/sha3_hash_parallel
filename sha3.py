@@ -177,7 +177,6 @@ def Keccak(inputlist, n,r,c, program, context, queue):
     #Initialize workgroup sizes for the gpu
     local_size, global_size = (5, 5) , (5,5*inputnum)
 
-    #THIS PART HAS TO CHANGE
     for i in range(max(iterations)): 
 
         host_string = ""
@@ -195,7 +194,6 @@ def Keccak(inputlist, n,r,c, program, context, queue):
 
         gpu_string = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=host_string)
         gpu_table = cl.Buffer(context, cl.mem_flags.READ_WRITE, 25*8 * inputnum)
-        #gpu_iterations = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=iterations)
         part_of_string = cl.LocalMemory(1*16)
         program.convert_str_to_table(queue,global_size,local_size, gpu_string, gpu_table, part_of_string, np.uint64(5),np.uint64(5),np.uint64(64))
         cl.enqueue_copy(queue, Pi, gpu_table, is_blocking=True)
