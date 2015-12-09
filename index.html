@@ -31,22 +31,73 @@
           <h3>
 <a id="welcome" class="anchor" href="#welcome" aria-hidden="true"><span class="octicon octicon-link"></span></a>Welcome</h3>
 
-<p>[Put intro here]</p>
+<p>Welcome to our CS205 final project! Before you go on, have a look at our video here: <a href="https://www.youtube.com/watch?v=vKFRfAGu6m0">Our video</a>
+As the growth of CPUs has slowed, our programs can no longer rely on faster CPUs each year. Instead, we can achieve speedup by parallelizing our code to 
+lever- age not only the multiple cores in the CPU, but the cores in the GPU as well. For our final project, we parallelized the recently standardized SHA-3 hash function. 
+Because SHA-3 uses a sponge construction, with each iteration depending on the results of the previous one, parallelizing the entire function is not possible.
+Thus, we focused our efforts to parallelize the computations within each iteration and over the entire input. 
+</p>
 
 <h3>
 <a id="motivation" class="anchor" href="#motivation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Motivation</h3>
-
+<p>Our motivation for this project came from two of the classes we were taking this semester, Computing Founda- tions taught by Ray Jones and Systems Security taught by James Mickens. 
+In our computing foundations class we worked with OpenCL, which is a framework that allows users to execute their programs across multiple computingdevices such as the GPU. We noticed a 
+significant speedup in our computations using OpenCL with our GPU com- pared to serial execution on our CPU. In systems security we learned about hash functions, dictionary attacks and password
+recovery attacks. To find the plaintext of a hashed password, one would have to hash a large dictionary of passwords. Due to the large size of the table, computing the hashes for the passwords is 
+computationally expensive. What if we could not only parallelize the hash function over the passwords, but also parallelize the computations within the hash function itself? If we had a parallelized 
+hash function, we could leverage the power of GPUs which have seen significant improvements in the past decade. With this in mind, we decided to look into it some more.</p>
 <h3>
 <a id="how-it-works" class="anchor" href="#how-it-works" aria-hidden="true"><span class="octicon octicon-link"></span></a>How it works</h3>
-
+<p>SHA-3 inherits many features of the sponge construction. It can take an arbitrary length input and produce a desired fixed-length output. The function starts with an initial state S which is a 5 by 5
+matrix of w bits each. The input data is split into blocks of size r, which we will call our bitrate. Each block is padded to the size of our initial state before being "absorbed" by the sponge. After we
+permute our matrix, we have finished our first round and go onto the next block of input. The number of rounds we make is determined by the width of our permutation. For example, letting our width w = 2^L, 
+then the the number of rounds denoted by n_r is n_r = 12 + 2*L. The sponge function is composed of five steps. Before we go into details, let us first explain the naming conventions we will use when operating
+on our state. Since each state is a 5 by 5 matrix and each element in it is w bits long, we can think of our state as a three-dimensional rectangular cube as seen in figure 1. Let a[i][j][k] denote the kth bit
+in the ith row and jth column of our matrix. The first step θ computes the parity of each sheet and an exclusive-or of the two nearby columns. More precisely,
+a[i][ j][k] ← a[i][ j][k] ⊕ parity(a[0...4][ j−1][k]) ⊕ pari- ty(a[0...4][ j+1][k−1]).
+The second step rho does a bitwise rotation of each of the 25 w-bit words in our state. The rotation numbers are constant. The third step pi permutes the w-bit words in a fixed pattern,
+    a[ j][2i+3 j] ← a[i][ j].
+The fourth step chi performs bitwise operations along neighboring rows,
+    a[i][ j][k] ← a[i][ j][k] ⊕ ¬a[i][ j+1][k] & a[i][ j+2][k].
+And the final step 𝜤 will exclusive-or a round constant into upper left lane of the state. The round constant is deter- mined by which iteration i_r we are currently on where RC is a predetermined list of constant values,
+    a[0][0][2m−1] ⊕ RC[i_r].</p>
 <h3>
 <a id="how-we-parallelized" class="anchor" href="#how-we-parallelized" aria-hidden="true"><span class="octicon octicon-link"></span></a>How we parallelized</h3>
-
+<p>The core of the hash function is a function called KeccakF which does a series of transformations of a 5 by 5 matrix multiple times. KeccakF takes up approximately 85% of the computational time of the whole hash function, 
+and hence parallelizing it will give us a large speedup. In the python implementation by the authors of Keccak, each lane (ie a cell in the 5 by 5 matrix) is run in serial. This resulted in many nested for loops.
+In our implementation, each thread is responsible for one lane in our state. lx and ly are the local IDs of our threads and represent the column and row in each 5 by 5 matrix. Since OpenCL uses pointers to arrays, we don’t index 
+into the matrix with m[ly][lx] where ly, lx represent the row and index that we want. Instead, we reference the element with m[ly*w+lx] where w is the number of elements in each row of our matrix (i.e. five). You will notice that
+we make a call to barrier(CLK_LOCAL_MEM_FENCE) every time before going on to the next step. This call tells the program to wait for all threads to finish execution before continuing to the next step. We need to wait for threads to
+finish execution in each step because the next one always depends on the val- ues of the previous one. In OpenCL, we only have to write the code that we expect one thread to execute, so there are no for loops. Instead, we have a thread
+for each lane in our matrix. Below we have shown the critical parts of our code that achieved parallelism. The parts from our code are italicized.
+During the theta step, each sheet will be combined into one lane through exclusive or. We will end up with five lanes that we store in array C.
+C[lx]= A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4].
+Module five is needed in this step as well as later ones because we need to handle the lanes that have only one neighbor. For example, since the first element in an array has no left neighbor, its left neighbor will be the last ele- ment in the array.
+After theta has finished, we will be left with five lanes. During the rho step, each lane will take the exclusive or of itself and its neighboring lanes. But the lane to its right will be rotated clockwise by one bit.
+D[lx]= C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength);
+During the step, each thread rotates the lane it is respon- sible for by a rotation offset. The rotateFunction takes a w- bit word and rotates it clockwise by the amount given.
+B[lx * buf_w + ((2 * ly + 3 * lx) % 5)] = rotateFunc- tion(A[ly * buf_w + lx], rotation_offsets[ly * buf_w + lx], wordlength).
+During the Chi step, each thread takes the complement of the lane to its right and performs a bitwise AND on the complement and the second one to its right. This value is then exclusive-ored with the original lane. 
+For the iota step, we simply exclusive-or the upper-left lane with a round constant that is predetermined at runtime. The value of the round constant depends on which iteration we are currently in.
+  A[0] = A[0] ^ RCfixed[roundcounter] //Where round- counter is the iteration number.
+</p>
+<p>
+  Parallelizing over multiple inputs
+Instead of hashing one input at a time, we can pass mul- tiple inputs into the GPU. This reduces the amount of reads and writes in our program and we can run our hash on multiple inputs in parallel. In this project, we converted 3 main functions
+of the hashing process into OpenCL code. Before the following parallelized functions are called, an input list of n arbitrary length strings are first converted to hex-strings, then padded via the 10*1 method so that each hex-string is a multiple of the bitrate. 
+As these steps are not computationally intensive, they are done in serial. Note: we used the padding function from the serial implementation as there is no need to parallelize it.
+  
+</p>
 <h3>
 <a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Improvements and Speedup</h3>
-
+<p>
+  our parallel implementation achieves a 3.3 speedup compared to the serial version for a 1 megabyte file. The standard deviation is approximately 0.4 and 0.16 for the serial and parallel versions respective- ly. Our program was run on a 2015 Macbook Pro with a 
+  GeForce GT 750M graphics card. The speedup also im- proves as the file size increases. Although there is obvious- ly an upper limit for the speedup on a given GPU, we were unable to stress-test this limit due to time constraints. To ensure the correctness of our
+  parallel implementation, the output files of the serial and parallel versions are compared via the linux command ‘diff’.
+  
+</p>
 <h3>
-<a id="authors-and-contributors" class="anchor" href="#authors-and-contributors" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+
 
 <p>The Keccak sponge function, designed by Guido Bertoni, Joan Daemen, Michaël Peeters and Gilles Van Assche. For more information, feedback or questions, please refer to our website: <a href="http://keccak.noekeon.org/">http://keccak.noekeon.org/</a>
 Serial implementation by Renaud Bauvin</p>
