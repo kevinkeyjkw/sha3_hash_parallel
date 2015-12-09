@@ -57,13 +57,19 @@ permute our matrix, we have finished our first round and go onto the next block 
 then the the number of rounds denoted by n_r is n_r = 12 + 2*L. The sponge function is composed of five steps. Before we go into details, let us first explain the naming conventions we will use when operating
 on our state. Since each state is a 5 by 5 matrix and each element in it is w bits long, we can think of our state as a three-dimensional rectangular cube as seen in figure 1. Let a[i][j][k] denote the kth bit
 in the ith row and jth column of our matrix. The first step θ computes the parity of each sheet and an exclusive-or of the two nearby columns. More precisely,
-`a[i][ j][k] ← a[i][ j][k] ⊕ parity(a[0...4][ j−1][k]) ⊕ parity(a[0...4][ j+1][k−1]).`
+<br>
+<code>a[i][j][k] ← a[i][j][k] ⊕ parity(a[0...4][j−1][k]) ⊕ parity(a[0...4][j+1][k−1])</code>
+<br>
 The second step rho does a bitwise rotation of each of the 25 w-bit words in our state. The rotation numbers are constant. The third step pi permutes the w-bit words in a fixed pattern,
-    `a[ j][2i+3 j] ← a[i][ j].`
+    <br>
+    <code>a j][2i+3 j] ← a[i][j]</code>
+    <br>
 The fourth step chi performs bitwise operations along neighboring rows,
-    `a[i][ j][k] ← a[i][ j][k] ⊕ ¬a[i][ j+1][k] & a[i][ j+2][k].`
+    <br>
+    <code>a[i][ j][k] ← a[i][ j][k] ⊕ ¬a[i][ j+1][k] & a[i][ j+2][k]</code>
+    <br>
 And the final step 𝜤 will exclusive-or a round constant into upper left lane of the state. The round constant is determined by which iteration i_r we are currently on where RC is a predetermined list of constant values,
-    `a[0][0][2m−1] ⊕ RC[i_r]`
+    <br><code>a[0][0][2m−1] ⊕ RC[i_r]</code><br>
     </p>
 <h3>
 <a id="how-we-parallelized" class="anchor" href="#how-we-parallelized" aria-hidden="true"><span class="octicon octicon-link"></span></a>How we parallelized</h3>
@@ -75,15 +81,15 @@ we make a call to barrier(CLK_LOCAL_MEM_FENCE) every time before going on to the
 finish execution in each step because the next one always depends on the values of the previous one. In OpenCL, we only have to write the code that we expect one thread to execute, so there are no for loops. Instead, we have a thread
 for each lane in our matrix. Below we have shown the critical parts of our code that achieved parallelism. The parts from our code are italicized.
 During the theta step, each sheet will be combined into one lane through exclusive or. We will end up with five lanes that we store in array C.
-`C[lx]= A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4].`
+<br><code>C[lx]= A[lx*5]^A[lx*5+1]^A[lx*5+2]^A[lx*5+3]^A[lx*5+4]</code><br>
 Module five is needed in this step as well as later ones because we need to handle the lanes that have only one neighbor. For example, since the first element in an array has no left neighbor, its left neighbor will be the last element in the array.
 After theta has finished, we will be left with five lanes. During the rho step, each lane will take the exclusive or of itself and its neighboring lanes. But the lane to its right will be rotated clockwise by one bit.
-`D[lx]= C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength)`
+<br><code>D[lx]= C[(lx+4)%5]^rotateFunction(C[(lx+1)%5],1, wordlength)</code><br>
 During the step, each thread rotates the lane it is responsible for by a rotation offset. The rotateFunction takes a w-bit word and rotates it clockwise by the amount given.
-`B[lx * buf_w + ((2 * ly + 3 * lx) % 5)] = rotateFunction(A[ly * buf_w + lx], rotation_offsets[ly * buf_w + lx], wordlength).`
+<br>B[lx * buf_w + ((2 * ly + 3 * lx) % 5)] = rotateFunction(A[ly * buf_w + lx], rotation_offsets[ly * buf_w + lx], wordlength).<br>
 During the Chi step, each thread takes the complement of the lane to its right and performs a bitwise AND on the complement and the second one to its right. This value is then exclusive-ored with the original lane. 
 For the iota step, we simply exclusive-or the upper-left lane with a round constant that is predetermined at runtime. The value of the round constant depends on which iteration we are currently in.
-  `A[0] = A[0] ^ RCfixed[roundcounter] //Where round counter is the iteration number.`
+  <br><code>A[0] = A[0] ^ RCfixed[roundcounter] //Where round counter is the iteration number.</code><br>
 </p>
 <p>
   Parallelizing over multiple inputs
@@ -94,7 +100,9 @@ As these steps are not computationally intensive, they are done in serial. Note:
 </p>
 <h3>
 <a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Improvements and Speedup</h3>
+<img src="images/results.png" alt="results" />
 <p>
+  
   Our parallel implementation achieves a 3.3 speedup compared to the serial version for a 1 megabyte file. The standard deviation is approximately 0.4 and 0.16 for the serial and parallel versions respectively. Our program was run on a 2015 Macbook Pro with a 
   GeForce GT 750M graphics card. The speedup also improves as the file size increases. Although there is obviously an upper limit for the speedup on a given GPU, we were unable to stress-test this limit due to time constraints. To ensure the correctness of our
   parallel implementation, the output files of the serial and parallel versions are compared via the linux command ‘diff’.
