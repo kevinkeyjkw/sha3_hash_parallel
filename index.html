@@ -72,6 +72,12 @@ And the final step 𝜤 will exclusive-or a round constant into upper left lane 
     <br><code>a[0][0][2m−1] ⊕ RC[i_r]</code><br>
     </p>
 <h3>
+  
+<h3><a id="motivation" class="anchor" href="#motivation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Motivation</h3>
+<p>
+  The data we applied our hash function to is a list of the most commonly found passwords. This list was taken from Cain & Abel.
+  
+</p>
 <a id="how-we-parallelized" class="anchor" href="#how-we-parallelized" aria-hidden="true"><span class="octicon octicon-link"></span></a>How we parallelized</h3>
 <p>The core of the hash function is a function called KeccakF which does a series of transformations of a 5 by 5 matrix multiple times. KeccakF takes up approximately 85% of the computational time of the whole hash function, 
 and hence parallelizing it will give us a large speedup. In the python implementation by the authors of Keccak, each lane (ie a cell in the 5 by 5 matrix) is run in serial. This resulted in many nested for loops.
@@ -123,18 +129,21 @@ In conclusion we believe we made acceptable progress. We were able to achieve mo
 to optimize our code. Through this project, we gained a deeper understanding of OpenCL and learned some of the advantages and disadvantages of using it. And by reading through multiple articles discussing SHA-3, we now have a thorough understanding of how the hash 
 function works. What we found most exciting in this project was how the GPU could be used not just for graphics, but for other areas that require large amounts of computation. 
 
-<h3><a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Further Improvements To Be Made</h3>
+
 
 <h3>
 <p>The Keccak sponge function, designed by Guido Bertoni, Joan Daemen, Michaël Peeters and Gilles Van Assche. For more information, feedback or questions, please refer to our website: <a href="http://keccak.noekeon.org/">http://keccak.noekeon.org/</a>
 Serial implementation by Renaud Bauvin</p>
 
 <span>References: 
-[1] B. Guido, J. Daemen, M. Peeters, and G. Assche. "The Keccak Sponge Function Family." The Keccak Sponge Function Family. Web. 16 Nov. 2015.
-[2] Miller, Samuela. "Keccak Explained." Web. 19 Nov. 2015.
-[3] R. Goulden and G. Barboza. "GPU SHA-3." GPU SHA-3. Web. 15 Nov. 2015.
-[4] P. Cayrel, G. Hoffmann, and M. Schneider. "GPU Implementation of the Keccak Hash Function Family." Http://www.sersc.org/. 1 Oct. 2011. Web. 18 Nov. 2015. [5] Kaplan, Moshe. "Moshekaplan/python-sha3." GitHub. 27 Nov. 2012. Web. 16 Nov. 2015.
-[6] Uddin, Moin. "Find Source Code." Find Source Code. 15 Mar. 2013. Web. 16 Nov. 2015.</span>
+[1] B. Guido, J. Daemen, M. Peeters, and G. Assche. "The Keccak Sponge Function Family." The Keccak Sponge Function Family. Web. 16 Nov. 2015.<br>
+[2] Miller, Samuela. "Keccak Explained." Web. 19 Nov. 2015.<br>
+[3] R. Goulden and G. Barboza. "GPU SHA-3." GPU SHA-3. Web. 15 Nov. 2015.<br>
+[4] P. Cayrel, G. Hoffmann, and M. Schneider. "GPU Implementation of the Keccak Hash Function Family." Http://www.sersc.org/. 1 Oct. 2011. Web. 18 Nov. 2015. [5] Kaplan, Moshe. "Moshekaplan/python-sha3." GitHub. 27 Nov. 2012. Web. 16 Nov. 2015.<br>
+[6] Uddin, Moin. "Find Source Code." Find Source Code. 15 Mar. 2013. Web. 16 Nov. 2015.<br>
+[7] http://www.oxid.it/cain.html<br>
+</span>
+
         </section>
 
         <aside id="sidebar">
