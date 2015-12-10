@@ -75,7 +75,7 @@ And the final step 𝜤 will exclusive-or a round constant into upper left lane 
   
 <h3><a id="motivation" class="anchor" href="#motivation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Motivation</h3>
 <p>
-  The data we applied our hash function to is a list of the most commonly found passwords. This list was taken from Cain & Abel.
+  The data we applied our hash function to is a list of the most commonly found passwords. This list was taken from Cain & Abel and John the Ripper.
   
 </p>
 <a id="how-we-parallelized" class="anchor" href="#how-we-parallelized" aria-hidden="true"><span class="octicon octicon-link"></span></a>How we parallelized</h3>
@@ -114,6 +114,7 @@ As these steps are not computationally intensive, they are done in serial. Note:
   parallel implementation, the output files of the serial and parallel versions are compared via the linux command ‘diff’.
   
 </p>
+<img src="images/sha3.png" />
 
 <h3><a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Further Improvements To Be Made</h3>
 <p>
