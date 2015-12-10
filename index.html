@@ -55,7 +55,7 @@ hash function, we could leverage the power of GPUs which have seen significant i
 matrix of w bits each. The input data is split into blocks of size r, which we will call our bitrate. Each block is padded to the size of our initial state before being "absorbed" by the sponge. After we
 permute our matrix, we have finished our first round and go onto the next block of input. The number of rounds we make is determined by the width of our permutation. For example, letting our width w = 2^L, 
 then the the number of rounds denoted by n_r is n_r = 12 + 2*L. The sponge function is composed of five steps. Before we go into details, let us first explain the naming conventions we will use when operating
-on our state. Since each state is a 5 by 5 matrix and each element in it is w bits long, we can think of our state as a three-dimensional rectangular cube as seen in figure 1. Let a[i][j][k] denote the kth bit
+on our state. Since each state is a 5 by 5 matrix and each element in it is w bits long, we can think of our state as a three-dimensional rectangular cube. Let a[i][j][k] denote the kth bit
 in the ith row and jth column of our matrix. The first step θ computes the parity of each sheet and an exclusive-or of the two nearby columns. More precisely,
 <br>
 <code>a[i][j][k] ← a[i][j][k] ⊕ parity(a[0...4][j−1][k]) ⊕ parity(a[0...4][j+1][k−1])</code>
@@ -108,11 +108,18 @@ As these steps are not computationally intensive, they are done in serial. Note:
   parallel implementation, the output files of the serial and parallel versions are compared via the linux command ‘diff’.
   
 </p>
+
+<h3>
+<a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conclusion</h3>
+We believe we made acceptable progress. We were able to achieve more than a three times speedup of the serial version of SHA-3 in Python. After this, we plan to continue learning about OpenCL and finding better ways 
+to optimize our code. Through this project, we gained a deeper understanding of OpenCL and learned some of the advantages and disadvantages of using it. And by reading through multiple articles discussing SHA-3, we now have a thorough understanding of how the hash 
+function works. What we found most exciting in this project was how the GPU could be used not just for graphics, but for other areas that require large amounts of computation.
 <h3>
 
 
 <p>The Keccak sponge function, designed by Guido Bertoni, Joan Daemen, Michaël Peeters and Gilles Van Assche. For more information, feedback or questions, please refer to our website: <a href="http://keccak.noekeon.org/">http://keccak.noekeon.org/</a>
 Serial implementation by Renaud Bauvin</p>
+
 <span>References: 
 [1] B. Guido, J. Daemen, M. Peeters, and G. Assche. "The Keccak Sponge Function Family." The Keccak Sponge Function Family. Web. 16 Nov. 2015.
 [2] Miller, Samuela. "Keccak Explained." Web. 19 Nov. 2015.
