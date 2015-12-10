@@ -109,14 +109,23 @@ As these steps are not computationally intensive, they are done in serial. Note:
   
 </p>
 
+<h3><a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Further Improvements To Be Made</h3>
+<p>
+  Although we achieved a noticeable speedup, we believe there are more optimizations that could be made in the future. One optimization is, instead of reading and writing data to the GPU for each iteration, we could do the read and write once for all iterations. 
+  This reduces the overhead of communications between the CPU and GPU. A second optimization is that there are still some parts of our code that execute in serial which can be parallelized. In particular, the padding of arbitrary length inputs to a fixed length 
+  input is currently done in serial. This pre-processing step takes approximately 3% of the total computational time, hence we chose not to parallelize.
+  
+</p>
+
 <h3>
 <a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conclusion</h3>
-We believe we made acceptable progress. We were able to achieve more than a three times speedup of the serial version of SHA-3 in Python. After this, we plan to continue learning about OpenCL and finding better ways 
+In conclusion we believe we made acceptable progress. We were able to achieve more than a three times speedup of the serial version of SHA-3 in Python. After this, we plan to continue learning about OpenCL and finding better ways 
 to optimize our code. Through this project, we gained a deeper understanding of OpenCL and learned some of the advantages and disadvantages of using it. And by reading through multiple articles discussing SHA-3, we now have a thorough understanding of how the hash 
-function works. What we found most exciting in this project was how the GPU could be used not just for graphics, but for other areas that require large amounts of computation.
+function works. What we found most exciting in this project was how the GPU could be used not just for graphics, but for other areas that require large amounts of computation. 
+
+<h3><a id="improvements-and-speedup" class="anchor" href="#improvements-and-speedup" aria-hidden="true"><span class="octicon octicon-link"></span></a>Further Improvements To Be Made</h3>
+
 <h3>
-
-
 <p>The Keccak sponge function, designed by Guido Bertoni, Joan Daemen, Michaël Peeters and Gilles Van Assche. For more information, feedback or questions, please refer to our website: <a href="http://keccak.noekeon.org/">http://keccak.noekeon.org/</a>
 Serial implementation by Renaud Bauvin</p>
 
